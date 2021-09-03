@@ -66,8 +66,8 @@ class StatusView extends React.Component {
 	constructor(props) {
 		super(props);
 
-		const { statusText } = props.user;
-		this.state = { statusText: statusText || '', loading: false };
+		const { statusText, status } = props.user;
+		this.state = { statusText: statusText || '', loading: false, newStatus: status };
 		this.setHeader();
 	}
 
@@ -90,10 +90,10 @@ class StatusView extends React.Component {
 
 	submit = async() => {
 		logEvent(events.STATUS_DONE);
-		const { statusText } = this.state;
+		const { statusText, newStatus } = this.state;
 		const { user } = this.props;
-		if (statusText !== user.statusText) {
-			await this.setCustomStatus(statusText);
+		if (statusText !== user.statusText || newStatus !== user.status) {
+			await this.setCustomStatus(statusText, newStatus);
 		}
 		this.close();
 	}
@@ -103,16 +103,17 @@ class StatusView extends React.Component {
 		navigation.goBack();
 	}
 
-	setCustomStatus = async(statusText) => {
-		const { user, setUser } = this.props;
+	setCustomStatus = async(statusText, newStatus) => {
+		const { setUser } = this.props;
 
 		this.setState({ loading: true });
 
 		try {
-			const result = await RocketChat.setUserStatus(user.status, statusText);
+			const result = await RocketChat.setUserStatus(newStatus, statusText);
 			if (result.success) {
 				logEvent(events.STATUS_CUSTOM);
 				setUser({ statusText });
+				setUser({ status: newStatus });
 				EventEmitter.emit(LISTENER, { message: I18n.t('Status_saved_successfully') });
 			} else {
 				logEvent(events.STATUS_CUSTOM_F);
@@ -127,7 +128,7 @@ class StatusView extends React.Component {
 	}
 
 	renderHeader = () => {
-		const { statusText } = this.state;
+		const { statusText, newStatus } = this.state;
 		const { user, theme } = this.props;
 
 		return (
@@ -141,7 +142,7 @@ class StatusView extends React.Component {
 						<Status
 							testID={`status-view-current-${ user.status }`}
 							style={styles.inputLeft}
-							status={user.status}
+							status={newStatus}
 							size={24}
 						/>
 					)}
@@ -155,8 +156,7 @@ class StatusView extends React.Component {
 	}
 
 	renderItem = ({ item }) => {
-		const { statusText } = this.state;
-		const { user, setUser } = this.props;
+		const { user } = this.props;
 		const { id, name } = item;
 		return (
 			<List.Item
@@ -165,10 +165,7 @@ class StatusView extends React.Component {
 					logEvent(events[`STATUS_${ item.id.toUpperCase() }`]);
 					if (user.status !== item.id) {
 						try {
-							const result = await RocketChat.setUserStatus(item.id, statusText);
-							if (result.success) {
-								setUser({ status: item.id });
-							}
+							await this.setState({ newStatus: item.id });
 						} catch (e) {
 							showErrorAlert(I18n.t(e.data.errorType));
 							logEvent(events.SET_STATUS_FAIL);

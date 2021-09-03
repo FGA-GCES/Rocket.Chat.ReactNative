@@ -1,6 +1,6 @@
 import { compareServerVersion, methods } from '../lib/utils';
 
-const formatUrl = (url, size, query) => `${ url }?format=png&size=${ size }${ query }`;
+const formatUrl = (url, size, query) => `${ url }?format=png&size=${ size }${ query }&time=${ Date.now() }`;
 
 export const avatarURL = ({
 	type, text, size = 25, user = {}, avatar, server, avatarETag, rid, blockUnauthenticatedAccess, serverVersion
