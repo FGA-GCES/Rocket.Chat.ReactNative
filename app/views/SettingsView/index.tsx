@@ -1,53 +1,46 @@
-import React from 'react';
-import { Clipboard, Linking, Share } from 'react-native';
-import { connect } from 'react-redux';
-import FastImage from '@rocket.chat/react-native-fast-image';
 import CookieManager from '@react-native-cookies/cookies';
-import { StackNavigationProp } from '@react-navigation/stack';
+import { StackNavigationOptions } from '@react-navigation/stack';
+import FastImage from 'react-native-fast-image';
+import React from 'react';
+import { Linking, Share } from 'react-native';
+import Clipboard from '@react-native-clipboard/clipboard';
+import { connect } from 'react-redux';
 
-import { logout as logoutAction } from '../../actions/login';
-import { selectServerRequest as selectServerRequestAction } from '../../actions/server';
-import { themes } from '../../constants/colors';
+import { appStart } from '../../actions/app';
+import { logout } from '../../actions/login';
+import { selectServerRequest } from '../../actions/server';
+import { APP_STORE_LINK, FDROID_MARKET_LINK, LICENSE_LINK, PLAY_MARKET_LINK, isFDroidBuild, themes } from '../../lib/constants';
 import * as HeaderButton from '../../containers/HeaderButton';
-import StatusBar from '../../containers/StatusBar';
 import * as List from '../../containers/List';
-import I18n from '../../i18n';
-import RocketChat from '../../lib/rocketchat';
-import { getDeviceModel, getReadableVersion, isAndroid } from '../../utils/deviceInfo';
-import openLink from '../../utils/openLink';
-import { showConfirmationAlert, showErrorAlert } from '../../utils/info';
-import { events, logEvent } from '../../utils/log';
-import { APP_STORE_LINK, FDROID_MARKET_LINK, LICENSE_LINK, PLAY_MARKET_LINK } from '../../constants/links';
-import { withTheme } from '../../theme';
-import SidebarView from '../SidebarView';
-import { LISTENER } from '../../containers/Toast';
-import EventEmitter from '../../utils/events';
-import { ROOT_LOADING, appStart as appStartAction } from '../../actions/app';
-import { onReviewPress } from '../../utils/review';
 import SafeAreaView from '../../containers/SafeAreaView';
+import StatusBar from '../../containers/StatusBar';
+import { LISTENER } from '../../containers/Toast';
+import { IApplicationState, IBaseScreen, IUser, RootEnum } from '../../definitions';
+import I18n from '../../i18n';
 import database from '../../lib/database';
-import { isFDroidBuild } from '../../constants/environment';
+import { IServer } from '../../reducers/server';
 import { getUserSelector } from '../../selectors/login';
+import { SettingsStackParamList } from '../../stacks/types';
+import { withTheme } from '../../theme';
+import { getDeviceModel, getReadableVersion, isAndroid } from '../../lib/methods/helpers';
+import EventEmitter from '../../lib/methods/helpers/events';
+import { showConfirmationAlert, showErrorAlert } from '../../lib/methods/helpers/info';
+import { events, logEvent } from '../../lib/methods/helpers/log';
+import openLink from '../../lib/methods/helpers/openLink';
+import { onReviewPress } from '../../lib/methods/helpers/review';
+import SidebarView from '../SidebarView';
+import { clearCache } from '../../lib/methods';
+import { Services } from '../../lib/services';
 
-interface IProps {
-	navigation: StackNavigationProp<any, 'SettingsView'>;
-	server: {
-		version: string;
-		server: string;
-	};
-	theme: string;
-	isMasterDetail: boolean;
-	logout: Function;
-	selectServerRequest: Function;
-	user: {
-		roles: [];
-		id: string;
-	};
-	appStart: Function;
+type TLogScreenName = 'SE_GO_LANGUAGE' | 'SE_GO_DEFAULTBROWSER' | 'SE_GO_THEME' | 'SE_GO_PROFILE' | 'SE_GO_SECURITYPRIVACY';
+
+interface ISettingsViewProps extends IBaseScreen<SettingsStackParamList, 'SettingsView'> {
+	server: IServer;
+	user: IUser;
 }
 
-class SettingsView extends React.Component<IProps, any> {
-	static navigationOptions = ({ navigation, isMasterDetail }: Partial<IProps>) => ({
+class SettingsView extends React.Component<ISettingsViewProps> {
+	static navigationOptions = ({ navigation, isMasterDetail }: ISettingsViewProps): StackNavigationOptions => ({
 		headerLeft: () =>
 			isMasterDetail ? (
 				<HeaderButton.CloseModal navigation={navigation} testID='settings-view-close' />
@@ -58,11 +51,11 @@ class SettingsView extends React.Component<IProps, any> {
 	});
 
 	checkCookiesAndLogout = async () => {
-		const { logout, user } = this.props;
+		const { dispatch, user } = this.props;
 		const db = database.servers;
 		const usersCollection = db.get('users');
 		try {
-			const userRecord: any = await usersCollection.find(user.id);
+			const userRecord = await usersCollection.find(user.id);
 			if (userRecord.isFromWebView) {
 				showConfirmationAlert({
 					title: I18n.t('Clear_cookies_alert'),
@@ -71,14 +64,14 @@ class SettingsView extends React.Component<IProps, any> {
 					dismissText: I18n.t('Clear_cookies_no'),
 					onPress: async () => {
 						await CookieManager.clearAll(true);
-						logout();
+						dispatch(logout());
 					},
 					onCancel: () => {
-						logout();
+						dispatch(logout());
 					}
 				});
 			} else {
-				logout();
+				dispatch(logout());
 			}
 		} catch {
 			// Do nothing: user not found
@@ -87,7 +80,6 @@ class SettingsView extends React.Component<IProps, any> {
 
 	handleLogout = () => {
 		logEvent(events.SE_LOG_OUT);
-		// @ts-ignore
 		showConfirmationAlert({
 			message: I18n.t('You_will_be_logged_out_of_this_application'),
 			confirmationText: I18n.t('Logout'),
@@ -97,36 +89,34 @@ class SettingsView extends React.Component<IProps, any> {
 
 	handleClearCache = () => {
 		logEvent(events.SE_CLEAR_LOCAL_SERVER_CACHE);
-		/* @ts-ignore */
 		showConfirmationAlert({
 			message: I18n.t('This_will_clear_all_your_offline_data'),
 			confirmationText: I18n.t('Clear'),
 			onPress: async () => {
 				const {
 					server: { server },
-					appStart,
-					selectServerRequest
+					dispatch
 				} = this.props;
-				appStart({ root: ROOT_LOADING, text: I18n.t('Clear_cache_loading') });
-				await RocketChat.clearCache({ server });
+				dispatch(appStart({ root: RootEnum.ROOT_LOADING, text: I18n.t('Clear_cache_loading') }));
+				await clearCache({ server });
 				await FastImage.clearMemoryCache();
 				await FastImage.clearDiskCache();
-				RocketChat.disconnect();
-				selectServerRequest(server);
+				Services.disconnect();
+				dispatch(selectServerRequest(server));
 			}
 		});
 	};
 
-	navigateToScreen = (screen: string) => {
-		/* @ts-ignore */
-		logEvent(events[`SE_GO_${screen.replace('View', '').toUpperCase()}`]);
+	navigateToScreen = (screen: keyof SettingsStackParamList) => {
+		const screenName = screen.replace('View', '').toUpperCase();
+		logEvent(events[`SE_GO_${screenName}` as TLogScreenName]);
 		const { navigation } = this.props;
 		navigation.navigate(screen);
 	};
 
 	sendEmail = async () => {
 		logEvent(events.SE_CONTACT_US);
-		const subject = encodeURI('React Native App Support');
+		const subject = encodeURI('Rocket.Chat Mobile App Support');
 		const email = encodeURI('support@rocket.chat');
 		const description = encodeURI(`
 			version: ${getReadableVersion}
@@ -157,8 +147,9 @@ class SettingsView extends React.Component<IProps, any> {
 		const {
 			server: { version }
 		} = this.props;
-		logEvent(events.SE_COPY_SERVER_VERSION, { serverVersion: version });
-		this.saveToClipboard(version);
+		const vers = version as string;
+		logEvent(events.SE_COPY_SERVER_VERSION, { serverVersion: vers });
+		this.saveToClipboard(vers);
 	};
 
 	copyAppVersion = () => {
@@ -182,12 +173,12 @@ class SettingsView extends React.Component<IProps, any> {
 		return (
 			<SafeAreaView testID='settings-view'>
 				<StatusBar />
-				<List.Container testID='settings-view-list'>
+				<List.Container>
 					{isMasterDetail ? (
 						<>
 							<List.Section>
 								<List.Separator />
-								<SidebarView />
+								<SidebarView theme={theme} />
 								<List.Separator />
 							</List.Section>
 							<List.Section>
@@ -299,16 +290,10 @@ class SettingsView extends React.Component<IProps, any> {
 	}
 }
 
-const mapStateToProps = (state: any) => ({
+const mapStateToProps = (state: IApplicationState) => ({
 	server: state.server,
 	user: getUserSelector(state),
 	isMasterDetail: state.app.isMasterDetail
 });
 
-const mapDispatchToProps = (dispatch: any) => ({
-	logout: () => dispatch(logoutAction()),
-	selectServerRequest: (params: any) => dispatch(selectServerRequestAction(params)),
-	appStart: (params: any) => dispatch(appStartAction(params))
-});
-
-export default connect(mapStateToProps, mapDispatchToProps)(withTheme(SettingsView));
+export default connect(mapStateToProps)(withTheme(SettingsView));

@@ -2,35 +2,33 @@ import React, { Component } from 'react';
 import { Alert, Keyboard, NativeModules, Text, View } from 'react-native';
 import { connect } from 'react-redux';
 import { KeyboardAccessoryView } from 'react-native-ui-lib/keyboard';
-import ImagePicker from 'react-native-image-crop-picker';
+import ImagePicker, { Image, ImageOrVideo, Options } from 'react-native-image-crop-picker';
 import { dequal } from 'dequal';
 import DocumentPicker from 'react-native-document-picker';
 import { Q } from '@nozbe/watermelondb';
 import { TouchableWithoutFeedback } from 'react-native-gesture-handler';
 
 import { generateTriggerId } from '../../lib/methods/actions';
-import TextInput from '../../presentation/TextInput';
+import { TextInput, IThemedTextInput } from '../TextInput';
 import { userTyping as userTypingAction } from '../../actions/room';
-import RocketChat from '../../lib/rocketchat';
 import styles from './styles';
 import database from '../../lib/database';
-import { emojis } from '../../emojis';
-import log, { events, logEvent } from '../../utils/log';
+import { emojis } from '../EmojiPicker/emojis';
+import log, { events, logEvent } from '../../lib/methods/helpers/log';
 import RecordAudio from './RecordAudio';
 import I18n from '../../i18n';
 import ReplyPreview from './ReplyPreview';
-import debounce from '../../utils/debounce';
-import { themes } from '../../constants/colors';
+import { themes } from '../../lib/constants';
 // @ts-ignore
 // eslint-disable-next-line import/extensions,import/no-unresolved
 import LeftButtons from './LeftButtons';
 // @ts-ignore
 // eslint-disable-next-line import/extensions,import/no-unresolved
 import RightButtons from './RightButtons';
-import { isAndroid, isTablet } from '../../utils/deviceInfo';
-import { canUploadFile } from '../../utils/media';
-import EventEmiter from '../../utils/events';
+import { canUploadFile } from '../../lib/methods/helpers/media';
+import EventEmiter from '../../lib/methods/helpers/events';
 import { KEY_COMMAND, handleCommandShowUpload, handleCommandSubmit, handleCommandTyping } from '../../commands';
+import getMentionRegexp from './getMentionRegexp';
 import Mentions from './Mentions';
 import MessageboxContext from './Context';
 import {
@@ -43,10 +41,27 @@ import {
 } from './constants';
 import CommandsPreview from './CommandsPreview';
 import { getUserSelector } from '../../selectors/login';
-import Navigation from '../../lib/Navigation';
+import Navigation from '../../lib/navigation/appNavigation';
 import { withActionSheet } from '../ActionSheet';
 import { sanitizeLikeString } from '../../lib/database/utils';
-import { CustomIcon } from '../../lib/Icons';
+import { CustomIcon } from '../CustomIcon';
+import { forceJpgExtension } from './forceJpgExtension';
+import {
+	IApplicationState,
+	IBaseScreen,
+	IPreviewItem,
+	IUser,
+	TGetCustomEmoji,
+	TSubscriptionModel,
+	TThreadModel,
+	IMessage
+} from '../../definitions';
+import { MasterDetailInsideStackParamList } from '../../stacks/MasterDetailStack/types';
+import { getPermalinkMessage, search, sendFileMessage } from '../../lib/methods';
+import { hasPermission, debounce, isAndroid, isTablet } from '../../lib/methods/helpers';
+import { Services } from '../../lib/services';
+import { TSupportedThemes } from '../../theme';
+import { ChatsStackParamList } from '../../stacks/types';
 
 if (isAndroid) {
 	require('./EmojiKeyboard');
@@ -54,54 +69,45 @@ if (isAndroid) {
 
 const imagePickerConfig = {
 	cropping: true,
-	compressImageQuality: 0.8,
 	avoidEmptySpaceAroundImage: false,
-	freeStyleCropEnabled: true
+	freeStyleCropEnabled: true,
+	forceJpg: true
 };
 
-const libraryPickerConfig = {
+const libraryPickerConfig: Options = {
 	multiple: true,
 	compressVideoPreset: 'Passthrough',
-	mediaType: 'any'
+	mediaType: 'any',
+	forceJpg: true
 };
 
-const videoPickerConfig = {
+const videoPickerConfig: Options = {
 	mediaType: 'video'
 };
 
-interface IMessageBoxProps {
+export interface IMessageBoxProps extends IBaseScreen<ChatsStackParamList & MasterDetailInsideStackParamList, any> {
 	rid: string;
 	baseUrl: string;
-	message: {
-		u: {
-			username: string;
-		};
-		id: any;
-	};
+	message: IMessage;
 	replying: boolean;
 	editing: boolean;
 	threadsEnabled: boolean;
 	isFocused(): boolean;
-	user: {
-		id: string;
-		username: string;
-		token: string;
-	};
+	user: IUser;
 	roomType: string;
 	tmid: string;
 	replyWithMention: boolean;
 	FileUpload_MediaTypeWhiteList: string;
 	FileUpload_MaxFileSize: number;
 	Message_AudioRecorderEnabled: boolean;
-	getCustomEmoji: Function;
+	getCustomEmoji: TGetCustomEmoji;
 	editCancel: Function;
 	editRequest: Function;
 	onSubmit: Function;
 	typing: Function;
-	theme: string;
+	theme: TSupportedThemes;
 	replyCancel(): void;
 	showSend: boolean;
-	navigation: any;
 	children: JSX.Element;
 	isMasterDetail: boolean;
 	showActionSheet: Function;
@@ -109,6 +115,9 @@ interface IMessageBoxProps {
 	sharing: boolean;
 	isActionsEnabled: boolean;
 	usedCannedResponse: string;
+	uploadFilePermission: string[];
+	serverVersion: string;
+	goToCannedResponses: () => void | null;
 }
 
 interface IMessageBoxState {
@@ -117,33 +126,32 @@ interface IMessageBoxState {
 	showSend: any;
 	recording: boolean;
 	trackingType: string;
-	commandPreview: [];
+	commandPreview: IPreviewItem[];
 	showCommandPreview: boolean;
 	command: {
-		appId?: any;
+		appId?: string;
 	};
 	tshow: boolean;
 	mentionLoading: boolean;
+	permissionToUpload: boolean;
 }
 
 class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
-	private text: string;
+	public text: string;
 
 	private selection: { start: number; end: number };
 
 	private focused: boolean;
 
-	private options: any;
+	private imagePickerConfig: Options;
 
-	private imagePickerConfig: any;
+	private libraryPickerConfig: Options;
 
-	private libraryPickerConfig: any;
+	private videoPickerConfig: Options;
 
-	private videoPickerConfig: any;
+	private room!: TSubscriptionModel;
 
-	private room: any;
-
-	private thread: any;
+	private thread!: TThreadModel;
 
 	private unsubscribeFocus: any;
 
@@ -179,40 +187,12 @@ class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
 			showCommandPreview: false,
 			command: {},
 			tshow: false,
-			mentionLoading: false
+			mentionLoading: false,
+			permissionToUpload: true
 		};
 		this.text = '';
 		this.selection = { start: 0, end: 0 };
 		this.focused = false;
-
-		// MessageBox Actions
-		this.options = [
-			{
-				title: I18n.t('Take_a_photo'),
-				icon: 'camera-photo',
-				onPress: this.takePhoto
-			},
-			{
-				title: I18n.t('Take_a_video'),
-				icon: 'camera',
-				onPress: this.takeVideo
-			},
-			{
-				title: I18n.t('Choose_from_library'),
-				icon: 'image',
-				onPress: this.chooseFromLibrary
-			},
-			{
-				title: I18n.t('Choose_file'),
-				icon: 'attach',
-				onPress: this.chooseFile
-			},
-			{
-				title: I18n.t('Create_Discussion'),
-				icon: 'discussions',
-				onPress: this.createDiscussion
-			}
-		];
 
 		const libPickerLabels = {
 			cropperChooseText: I18n.t('Choose'),
@@ -277,6 +257,8 @@ class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
 			this.onChangeText(usedCannedResponse);
 		}
 
+		this.setOptions();
+
 		this.unsubscribeFocus = navigation.addListener('focus', () => {
 			// didFocus
 			// We should wait pushed views be dismissed
@@ -321,10 +303,30 @@ class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
 		}
 	}
 
-	shouldComponentUpdate(nextProps: any, nextState: any) {
-		const { showEmojiKeyboard, showSend, recording, mentions, commandPreview, tshow, mentionLoading, trackingType } = this.state;
+	shouldComponentUpdate(nextProps: IMessageBoxProps, nextState: IMessageBoxState) {
+		const {
+			showEmojiKeyboard,
+			showSend,
+			recording,
+			mentions,
+			commandPreview,
+			tshow,
+			mentionLoading,
+			trackingType,
+			permissionToUpload
+		} = this.state;
 
-		const { roomType, replying, editing, isFocused, message, theme, usedCannedResponse } = this.props;
+		const {
+			roomType,
+			replying,
+			editing,
+			isFocused,
+			message,
+			theme,
+			usedCannedResponse,
+			uploadFilePermission,
+			goToCannedResponses
+		} = this.props;
 		if (nextProps.theme !== theme) {
 			return true;
 		}
@@ -358,6 +360,9 @@ class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
 		if (nextState.tshow !== tshow) {
 			return true;
 		}
+		if (nextState.permissionToUpload !== permissionToUpload) {
+			return true;
+		}
 		if (!dequal(nextState.mentions, mentions)) {
 			return true;
 		}
@@ -367,10 +372,23 @@ class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
 		if (!dequal(nextProps.message?.id, message?.id)) {
 			return true;
 		}
+		if (!dequal(nextProps.uploadFilePermission, uploadFilePermission)) {
+			return true;
+		}
 		if (nextProps.usedCannedResponse !== usedCannedResponse) {
 			return true;
 		}
+		if (nextProps.goToCannedResponses !== goToCannedResponses) {
+			return true;
+		}
 		return false;
+	}
+
+	componentDidUpdate(prevProps: IMessageBoxProps) {
+		const { uploadFilePermission, goToCannedResponses } = this.props;
+		if (!dequal(prevProps.uploadFilePermission, uploadFilePermission) || prevProps.goToCannedResponses !== goToCannedResponses) {
+			this.setOptions();
+		}
 	}
 
 	componentWillUnmount() {
@@ -403,6 +421,19 @@ class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
 			EventEmiter.removeListener(KEY_COMMAND, this.handleCommands);
 		}
 	}
+
+	setOptions = async () => {
+		const { uploadFilePermission, rid } = this.props;
+
+		// Servers older than 4.2
+		if (!uploadFilePermission) {
+			this.setState({ permissionToUpload: true });
+			return;
+		}
+
+		const permissionToUpload = await hasPermission([uploadFilePermission], rid);
+		this.setState({ permissionToUpload: permissionToUpload[0] });
+	};
 
 	onChangeText: any = (text: string): void => {
 		const isTextEmpty = text.length === 0;
@@ -481,7 +512,7 @@ class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
 		const msg = this.text;
 		const { start, end } = this.selection;
 		const cursor = Math.max(start, end);
-		const regexp = /([a-z0-9._-]+)$/im;
+		const regexp = getMentionRegexp();
 		let result = msg.substr(0, cursor).replace(regexp, '');
 		// Remove the ! after select the canned response
 		if (trackingType === MENTIONS_TRACKING_TYPE_CANNED) {
@@ -521,14 +552,14 @@ class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
 		try {
 			const { appId } = command;
 			const triggerId = generateTriggerId(appId);
-			RocketChat.executeCommandPreview(name, params, rid, item, triggerId, tmid || messageTmid);
+			Services.executeCommandPreview(name, params, rid, item, triggerId, tmid || messageTmid);
 			replyCancel();
 		} catch (e) {
 			log(e);
 		}
 	};
 
-	onEmojiSelected = (keyboardId: any, params: any) => {
+	onEmojiSelected = (keyboardId: string, params: { emoji: string }) => {
 		const { text } = this;
 		const { emoji } = params;
 		let newText = '';
@@ -544,7 +575,7 @@ class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
 
 	getPermalink = async (message: any) => {
 		try {
-			return await RocketChat.getPermalinkMessage(message);
+			return await getPermalinkMessage(message);
 		} catch (error) {
 			return null;
 		}
@@ -562,13 +593,13 @@ class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
 	};
 
 	getUsers = debounce(async (keyword: any) => {
-		let res = await RocketChat.search({ text: keyword, filterRooms: false, filterUsers: true });
+		let res = await search({ text: keyword, filterRooms: false, filterUsers: true });
 		res = [...this.getFixedMentions(keyword), ...res];
 		this.setState({ mentions: res, mentionLoading: false });
 	}, 300);
 
 	getRooms = debounce(async (keyword = '') => {
-		const res = await RocketChat.search({ text: keyword, filterRooms: true, filterUsers: false });
+		const res = await search({ text: keyword, filterRooms: true, filterUsers: false });
 		this.setState({ mentions: res, mentionLoading: false });
 	}, 300);
 
@@ -596,8 +627,8 @@ class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
 	}, 300);
 
 	getCannedResponses = debounce(async (text?: string) => {
-		const res = await RocketChat.getListCannedResponse({ text });
-		this.setState({ mentions: res?.cannedResponses || [], mentionLoading: false });
+		const res = await Services.getListCannedResponse({ text });
+		this.setState({ mentions: res.success ? res.cannedResponses : [], mentionLoading: false });
 	}, 500);
 
 	focus = () => {
@@ -630,12 +661,12 @@ class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
 		}, 1000);
 	};
 
-	setCommandPreview = async (command: any, name: string, params: any) => {
+	setCommandPreview = async (command: any, name: string, params: string) => {
 		const { rid } = this.props;
 		try {
-			const { success, preview } = await RocketChat.getCommandPreview(name, rid, params);
-			if (success) {
-				return this.setState({ commandPreview: preview?.items, showCommandPreview: true, command });
+			const response = await Services.getCommandPreview(name, rid, params);
+			if (response.success) {
+				return this.setState({ commandPreview: response.preview?.items || [], showCommandPreview: true, command });
 			}
 		} catch (e) {
 			log(e);
@@ -666,19 +697,26 @@ class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
 	};
 
 	canUploadFile = (file: any) => {
+		const { permissionToUpload } = this.state;
 		const { FileUpload_MediaTypeWhiteList, FileUpload_MaxFileSize } = this.props;
-		const result = canUploadFile(file, FileUpload_MediaTypeWhiteList, FileUpload_MaxFileSize);
+		const result = canUploadFile({
+			file,
+			allowList: FileUpload_MediaTypeWhiteList,
+			maxFileSize: FileUpload_MaxFileSize,
+			permissionToUploadFile: permissionToUpload
+		});
 		if (result.success) {
 			return true;
 		}
-		Alert.alert(I18n.t('Error_uploading'), I18n.t(result.error));
+		Alert.alert(I18n.t('Error_uploading'), result.error && I18n.isTranslated(result.error) ? I18n.t(result.error) : result.error);
 		return false;
 	};
 
 	takePhoto = async () => {
 		logEvent(events.ROOM_BOX_ACTION_PHOTO);
 		try {
-			const image = await ImagePicker.openCamera(this.imagePickerConfig);
+			let image = (await ImagePicker.openCamera(this.imagePickerConfig)) as Image;
+			image = forceJpgExtension(image);
 			if (this.canUploadFile(image)) {
 				this.openShareView([image]);
 			}
@@ -702,7 +740,9 @@ class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
 	chooseFromLibrary = async () => {
 		logEvent(events.ROOM_BOX_ACTION_LIBRARY);
 		try {
-			const attachments = await ImagePicker.openPicker(this.libraryPickerConfig);
+			// The type can be video or photo, however the lib understands that it is just one of them.
+			let attachments = (await ImagePicker.openPicker(this.libraryPickerConfig)) as unknown as ImageOrVideo[];
+			attachments = attachments.map(att => forceJpgExtension(att));
 			this.openShareView(attachments);
 		} catch (e) {
 			logEvent(events.ROOM_BOX_ACTION_LIBRARY_F);
@@ -712,7 +752,7 @@ class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
 	chooseFile = async () => {
 		logEvent(events.ROOM_BOX_ACTION_FILE);
 		try {
-			const res = await DocumentPicker.pick({
+			const res = await DocumentPicker.pickSingle({
 				type: [DocumentPicker.types.allFiles]
 			});
 			const file = {
@@ -745,12 +785,12 @@ class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
 	openShareView = (attachments: any) => {
 		const { message, replyCancel, replyWithMention } = this.props;
 		// Start a thread with an attachment
-		let { thread } = this;
+		let value: TThreadModel | IMessage = this.thread;
 		if (replyWithMention) {
-			thread = message;
+			value = message;
 			replyCancel();
 		}
-		Navigation.navigate('ShareView', { room: this.room, thread, attachments });
+		Navigation.navigate('ShareView', { room: this.room, thread: value, attachments });
 	};
 
 	createDiscussion = () => {
@@ -766,8 +806,48 @@ class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
 
 	showMessageBoxActions = () => {
 		logEvent(events.ROOM_SHOW_BOX_ACTIONS);
-		const { showActionSheet } = this.props;
-		showActionSheet({ options: this.options });
+		const { permissionToUpload } = this.state;
+		const { showActionSheet, goToCannedResponses } = this.props;
+
+		const options = [];
+		if (goToCannedResponses) {
+			options.push({
+				title: I18n.t('Canned_Responses'),
+				icon: 'canned-response',
+				onPress: () => goToCannedResponses()
+			});
+		}
+		if (permissionToUpload) {
+			options.push(
+				{
+					title: I18n.t('Take_a_photo'),
+					icon: 'camera-photo',
+					onPress: this.takePhoto
+				},
+				{
+					title: I18n.t('Take_a_video'),
+					icon: 'camera',
+					onPress: this.takeVideo
+				},
+				{
+					title: I18n.t('Choose_from_library'),
+					icon: 'image',
+					onPress: this.chooseFromLibrary
+				},
+				{
+					title: I18n.t('Choose_file'),
+					icon: 'attach',
+					onPress: this.chooseFile
+				}
+			);
+		}
+
+		options.push({
+			title: I18n.t('Create_Discussion'),
+			icon: 'discussions',
+			onPress: this.createDiscussion
+		});
+		showActionSheet({ options });
 	};
 
 	editCancel = () => {
@@ -791,7 +871,7 @@ class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
 		if (fileInfo) {
 			try {
 				if (this.canUploadFile(fileInfo)) {
-					await RocketChat.sendFileMessage(rid, fileInfo, tmid, server, user);
+					await sendFileMessage(rid, fileInfo, tmid, server, user);
 				}
 			} catch (e) {
 				log(e);
@@ -843,7 +923,7 @@ class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
 					const messageWithoutCommand = message.replace(/([^\s]+)/, '').trim();
 					const [{ appId }] = slashCommand;
 					const triggerId = generateTriggerId(appId);
-					RocketChat.runSlashCommand(command, roomId, messageWithoutCommand, triggerId, tmid || messageTmid);
+					await Services.runSlashCommand(command, roomId, messageWithoutCommand, triggerId, tmid || messageTmid);
 					replyCancel();
 				} catch (e) {
 					logEvent(events.COMMAND_RUN_F);
@@ -878,8 +958,8 @@ class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
 				let msg = `[ ](${permalink}) `;
 
 				// if original message wasn't sent by current user and neither from a direct room
-				if (user.username !== replyingMessage.u.username && roomType !== 'd' && replyWithMention) {
-					msg += `@${replyingMessage.u.username} `;
+				if (user.username !== replyingMessage?.u?.username && roomType !== 'd' && replyWithMention) {
+					msg += `@${replyingMessage?.u?.username} `;
 				}
 
 				msg = `${msg} ${message}`;
@@ -968,8 +1048,17 @@ class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
 	};
 
 	renderContent = () => {
-		const { recording, showEmojiKeyboard, showSend, mentions, trackingType, commandPreview, showCommandPreview, mentionLoading } =
-			this.state;
+		const {
+			recording,
+			showEmojiKeyboard,
+			showSend,
+			mentions,
+			trackingType,
+			commandPreview,
+			showCommandPreview,
+			mentionLoading,
+			permissionToUpload
+		} = this.state;
 		const {
 			editing,
 			message,
@@ -984,7 +1073,7 @@ class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
 			tmid
 		} = this.props;
 
-		const isAndroidTablet =
+		const isAndroidTablet: Partial<IThemedTextInput> =
 			isTablet && isAndroid
 				? {
 						multiline: false,
@@ -995,25 +1084,28 @@ class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
 
 		const recordAudio =
 			showSend || !Message_AudioRecorderEnabled ? null : (
-				<RecordAudio theme={theme} recordingCallback={this.recordingCallback} onFinish={this.finishAudioMessage} />
+				<RecordAudio
+					theme={theme}
+					recordingCallback={this.recordingCallback}
+					onFinish={this.finishAudioMessage}
+					permissionToUpload={permissionToUpload}
+				/>
 			);
 
 		const commandsPreviewAndMentions = !recording ? (
 			<>
 				<CommandsPreview commandPreview={commandPreview} showCommandPreview={showCommandPreview} />
-				<Mentions mentions={mentions} trackingType={trackingType} theme={theme} loading={mentionLoading} />
+				<Mentions mentions={mentions} trackingType={trackingType} loading={mentionLoading} />
 			</>
 		) : null;
 
 		const replyPreview = !recording ? (
 			<ReplyPreview
-				// @ts-ignore
 				message={message}
 				close={replyCancel}
 				username={user.username}
 				replying={replying}
 				getCustomEmoji={getCustomEmoji}
-				theme={theme}
 			/>
 		) : null;
 
@@ -1032,7 +1124,6 @@ class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
 				<TextInput
 					ref={component => (this.component = component)}
 					style={[styles.textBoxInput, { color: themes[theme].bodyText }]}
-					// @ts-ignore
 					returnKeyType='default'
 					keyboardType='twitter'
 					blurOnSubmit={false}
@@ -1044,7 +1135,6 @@ class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
 					defaultValue=''
 					multiline
 					testID={`messagebox-input${tmid ? '-thread' : ''}`}
-					theme={theme}
 					{...isAndroidTablet}
 				/>
 				<RightButtons
@@ -1110,18 +1200,21 @@ class MessageBox extends Component<IMessageBoxProps, IMessageBoxState> {
 	}
 }
 
-const mapStateToProps = (state: any) => ({
+const mapStateToProps = (state: IApplicationState) => ({
 	isMasterDetail: state.app.isMasterDetail,
 	baseUrl: state.server.server,
 	threadsEnabled: state.settings.Threads_enabled,
 	user: getUserSelector(state),
 	FileUpload_MediaTypeWhiteList: state.settings.FileUpload_MediaTypeWhiteList,
 	FileUpload_MaxFileSize: state.settings.FileUpload_MaxFileSize,
-	Message_AudioRecorderEnabled: state.settings.Message_AudioRecorderEnabled
+	Message_AudioRecorderEnabled: state.settings.Message_AudioRecorderEnabled,
+	uploadFilePermission: state.permissions['mobile-upload-file']
 });
 
 const dispatchToProps = {
 	typing: (rid: any, status: any) => userTypingAction(rid, status)
 };
-// @ts-ignore
+
+export type MessageBoxType = MessageBox;
+
 export default connect(mapStateToProps, dispatchToProps, null, { forwardRef: true })(withActionSheet(MessageBox));

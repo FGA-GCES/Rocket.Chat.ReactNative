@@ -1,13 +1,9 @@
 import React, { PureComponent } from 'react';
-import { Image, Text } from 'react-native';
-import { Node, Parser } from 'commonmark';
+import { Image, StyleProp, Text, TextStyle } from 'react-native';
+import { Parser } from 'commonmark';
 import Renderer from 'commonmark-react-renderer';
-import removeMarkdown from 'remove-markdown';
 import { MarkdownAST } from '@rocket.chat/message-parser';
 
-import shortnameToUnicode from '../../utils/shortnameToUnicode';
-import I18n from '../../i18n';
-import { themes } from '../../constants/colors';
 import MarkdownLink from './Link';
 import MarkdownList from './List';
 import MarkdownListItem from './ListItem';
@@ -20,52 +16,41 @@ import MarkdownTableRow from './TableRow';
 import MarkdownTableCell from './TableCell';
 import mergeTextNodes from './mergeTextNodes';
 import styles from './styles';
-import { isValidURL } from '../../utils/url';
+import { isValidURL } from '../../lib/methods/helpers/url';
 import NewMarkdown from './new';
+import { formatText } from './formatText';
+import { IUserMention, IUserChannel, TOnLinkPress } from './interfaces';
+import { TGetCustomEmoji } from '../../definitions/IEmoji';
+import { formatHyperlink } from './formatHyperlink';
+import { TSupportedThemes } from '../../theme';
+import { themes } from '../../lib/constants';
 
-interface IUser {
-	_id: string;
-	username: string;
-	name: string;
-}
-
-type UserMention = Pick<IUser, '_id' | 'username' | 'name'>;
+export { default as MarkdownPreview } from './Preview';
 
 interface IMarkdownProps {
-	msg: string;
-	md: MarkdownAST;
-	mentions: UserMention[];
-	getCustomEmoji: Function;
-	baseUrl: string;
-	username: string;
-	tmid: string;
-	isEdited: boolean;
-	numberOfLines: number;
-	customEmojis: boolean;
-	useRealName: boolean;
-	channels: {
-		name: string;
-		_id: number;
-	}[];
-	enableMessageParser: boolean;
-	navToRoomInfo: Function;
-	preview: boolean;
-	theme: string;
-	testID: string;
-	style: any;
-	onLinkPress: Function;
+	msg?: string | null;
+	theme: TSupportedThemes;
+	md?: MarkdownAST;
+	mentions?: IUserMention[];
+	getCustomEmoji?: TGetCustomEmoji;
+	baseUrl?: string;
+	username?: string;
+	tmid?: string;
+	numberOfLines?: number;
+	customEmojis?: boolean;
+	useRealName?: boolean;
+	channels?: IUserChannel[];
+	enableMessageParser?: boolean;
+	// TODO: Refactor when migrate Room
+	navToRoomInfo?: Function;
+	testID?: string;
+	style?: StyleProp<TextStyle>[];
+	onLinkPress?: TOnLinkPress;
 }
 
 type TLiteral = {
 	literal: string;
 };
-
-// Support <http://link|Text>
-const formatText = (text: string) =>
-	text.replace(
-		new RegExp('(?:<|<)((?:https|http):\\/\\/[^\\|]+)\\|(.+?)(?=>|>)(?:>|>)', 'gm'),
-		(match, url, title) => `[${title}](${url})`
-	);
 
 const emojiRanges = [
 	'\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff]', // unicode emoji from https://www.regextester.com/106421
@@ -146,32 +131,15 @@ class Markdown extends PureComponent<IMarkdownProps, any> {
 
 				table: this.renderTable,
 				table_row: this.renderTableRow,
-				table_cell: this.renderTableCell,
-
-				editedIndicator: this.renderEditedIndicator
+				table_cell: this.renderTableCell
 			},
 			renderParagraphsInLists: true
 		});
 
 	get isNewMarkdown(): boolean {
 		const { md, enableMessageParser } = this.props;
-		return enableMessageParser && !!md;
+		return !!enableMessageParser && !!md;
 	}
-
-	editedMessage = (ast: any) => {
-		const { isEdited } = this.props;
-		if (isEdited) {
-			const editIndicatorNode = new Node('edited_indicator');
-			if (ast.lastChild && ['heading', 'paragraph'].includes(ast.lastChild.type)) {
-				ast.lastChild.appendChild(editIndicatorNode);
-			} else {
-				const node = new Node('paragraph');
-				node.appendChild(editIndicatorNode);
-
-				ast.appendChild(node);
-			}
-		}
-	};
 
 	renderText = ({ context, literal }: { context: []; literal: string }) => {
 		const { numberOfLines, style = [] } = this.props;
@@ -251,7 +219,7 @@ class Markdown extends PureComponent<IMarkdownProps, any> {
 	};
 
 	renderAtMention = ({ mentionName }: { mentionName: string }) => {
-		const { username, mentions, navToRoomInfo, useRealName, style } = this.props;
+		const { username = '', mentions, navToRoomInfo, useRealName, style } = this.props;
 		return (
 			<MarkdownAtMention
 				mentions={mentions}
@@ -265,7 +233,7 @@ class Markdown extends PureComponent<IMarkdownProps, any> {
 	};
 
 	renderEmoji = ({ literal }: TLiteral) => {
-		const { getCustomEmoji, baseUrl, customEmojis, style, theme } = this.props;
+		const { getCustomEmoji, baseUrl = '', customEmojis, style } = this.props;
 		return (
 			<MarkdownEmoji
 				literal={literal}
@@ -274,7 +242,6 @@ class Markdown extends PureComponent<IMarkdownProps, any> {
 				baseUrl={baseUrl}
 				customEmojis={customEmojis}
 				style={style}
-				theme={theme}
 			/>
 		);
 	};
@@ -287,13 +254,9 @@ class Markdown extends PureComponent<IMarkdownProps, any> {
 		return <Image style={styles.inlineImage} source={{ uri: encodeURI(src) }} />;
 	};
 
-	renderEditedIndicator = () => {
-		const { theme } = this.props;
-		return <Text style={[styles.edited, { color: themes[theme].auxiliaryText }]}> ({I18n.t('edited')})</Text>;
-	};
-
 	renderHeading = ({ children, level }: any) => {
 		const { numberOfLines, theme } = this.props;
+		// @ts-ignore
 		const textStyle = styles[`heading${level}Text`];
 		return (
 			<Text numberOfLines={numberOfLines} style={[textStyle, { color: themes[theme].bodyText }]}>
@@ -350,18 +313,13 @@ class Markdown extends PureComponent<IMarkdownProps, any> {
 		const {
 			msg,
 			md,
-			numberOfLines,
-			preview = false,
-			theme,
-			style = [],
-			testID,
 			mentions,
 			channels,
 			navToRoomInfo,
 			useRealName,
-			username,
+			username = '',
 			getCustomEmoji,
-			baseUrl,
+			baseUrl = '',
 			onLinkPress
 		} = this.props;
 
@@ -369,7 +327,7 @@ class Markdown extends PureComponent<IMarkdownProps, any> {
 			return null;
 		}
 
-		if (this.isNewMarkdown && !preview) {
+		if (this.isNewMarkdown) {
 			return (
 				<NewMarkdown
 					username={username}
@@ -386,32 +344,10 @@ class Markdown extends PureComponent<IMarkdownProps, any> {
 		}
 
 		let m = formatText(msg);
-
-		// Ex: '[ ](https://open.rocket.chat/group/test?msg=abcdef)  Test'
-		// Return: 'Test'
-		m = m.replace(/^\[([\s]*)\]\(([^)]*)\)\s/, '').trim();
-
-		if (preview) {
-			m = shortnameToUnicode(m);
-			// Removes sequential empty spaces
-			m = m.replace(/\s+/g, ' ');
-			m = removeMarkdown(m);
-			m = m.replace(/\n+/g, ' ');
-			return (
-				<Text
-					accessibilityLabel={m}
-					style={[styles.text, { color: themes[theme].bodyText }, ...style]}
-					numberOfLines={numberOfLines}
-					testID={testID}>
-					{m}
-				</Text>
-			);
-		}
-
+		m = formatHyperlink(m);
 		let ast = parser.parse(m);
 		ast = mergeTextNodes(ast);
 		this.isMessageContainsOnlyEmoji = isOnlyEmoji(m) && emojiCount(m) <= 3;
-		this.editedMessage(ast);
 		return this.renderer.render(ast);
 	}
 }

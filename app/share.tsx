@@ -5,15 +5,16 @@ import { AppearanceProvider } from 'react-native-appearance';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Provider } from 'react-redux';
 
-import { defaultTheme, newThemeState, subscribeTheme, unsubscribeTheme } from './utils/theme';
-import UserPreferences from './lib/userPreferences';
-import Navigation from './lib/ShareNavigation';
-import store from './lib/createStore';
-import { supportSystemTheme } from './utils/deviceInfo';
-import { defaultHeader, getActiveRouteName, navigationTheme, themedHeader } from './utils/navigation';
-import RocketChat, { THEME_PREFERENCES_KEY } from './lib/rocketchat';
-import { ThemeContext } from './theme';
-import { localAuthenticate } from './utils/localAuthentication';
+import { getTheme, initialTheme, newThemeState, subscribeTheme, unsubscribeTheme } from './lib/methods/helpers/theme';
+import UserPreferences from './lib/methods/userPreferences';
+import Navigation from './lib/navigation/shareNavigation';
+import store from './lib/store';
+import { initStore } from './lib/store/auxStore';
+import { closeShareExtension, shareExtensionInit } from './lib/methods/shareExtension';
+import { defaultHeader, getActiveRouteName, navigationTheme, themedHeader } from './lib/methods/helpers/navigation';
+import { ThemeContext, TSupportedThemes } from './theme';
+import { localAuthenticate } from './lib/methods/helpers/localAuthentication';
+import { IThemePreference } from './definitions/ITheme';
 import ScreenLockedView from './views/ScreenLockedView';
 // Outside Stack
 import WithoutServersView from './views/WithoutServersView';
@@ -21,10 +22,14 @@ import WithoutServersView from './views/WithoutServersView';
 import ShareListView from './views/ShareListView';
 import ShareView from './views/ShareView';
 import SelectServerView from './views/SelectServerView';
-import { setCurrentScreen } from './utils/log';
+import { setCurrentScreen } from './lib/methods/helpers/log';
 import AuthLoadingView from './views/AuthLoadingView';
 import { DimensionsContext } from './dimensions';
-import debounce from './utils/debounce';
+import { debounce } from './lib/methods/helpers';
+import { ShareInsideStackParamList, ShareOutsideStackParamList, ShareAppStackParamList } from './definitions/navigationTypes';
+import { colors, CURRENT_SERVER } from './lib/constants';
+
+initStore(store);
 
 interface IDimensions {
 	width: number;
@@ -34,11 +39,8 @@ interface IDimensions {
 }
 
 interface IState {
-	theme: string;
-	themePreferences: {
-		currentTheme: 'automatic' | 'light';
-		darkLevel: string;
-	};
+	theme: TSupportedThemes;
+	themePreferences: IThemePreference;
 	root: any;
 	width: number;
 	height: number;
@@ -46,7 +48,7 @@ interface IState {
 	fontScale: number;
 }
 
-const Inside = createStackNavigator();
+const Inside = createStackNavigator<ShareInsideStackParamList>();
 const InsideStack = () => {
 	const { theme } = useContext(ThemeContext);
 
@@ -65,24 +67,19 @@ const InsideStack = () => {
 	);
 };
 
-const Outside = createStackNavigator();
+const Outside = createStackNavigator<ShareOutsideStackParamList>();
 const OutsideStack = () => {
 	const { theme } = useContext(ThemeContext);
 
 	return (
 		<Outside.Navigator screenOptions={{ ...defaultHeader, ...themedHeader(theme) }}>
-			<Outside.Screen
-				name='WithoutServersView'
-				component={WithoutServersView}
-				/* @ts-ignore*/
-				options={WithoutServersView.navigationOptions}
-			/>
+			<Outside.Screen name='WithoutServersView' component={WithoutServersView} options={WithoutServersView.navigationOptions} />
 		</Outside.Navigator>
 	);
 };
 
 // App
-const Stack = createStackNavigator();
+const Stack = createStackNavigator<ShareAppStackParamList>();
 export const App = ({ root }: any) => (
 	<Stack.Navigator screenOptions={{ headerShown: false, animationEnabled: false }}>
 		<>
@@ -94,15 +91,15 @@ export const App = ({ root }: any) => (
 );
 
 class Root extends React.Component<{}, IState> {
+	private mounted = false;
+
 	constructor(props: any) {
 		super(props);
 		const { width, height, scale, fontScale } = Dimensions.get('screen');
+		const theme = initialTheme();
 		this.state = {
-			theme: defaultTheme(),
-			themePreferences: {
-				currentTheme: supportSystemTheme() ? 'automatic' : 'light',
-				darkLevel: 'black'
-			},
+			theme: getTheme(theme),
+			themePreferences: theme,
 			root: '',
 			width,
 			height,
@@ -112,22 +109,27 @@ class Root extends React.Component<{}, IState> {
 		this.init();
 	}
 
-	componentWillUnmount() {
-		RocketChat.closeShareExtension();
+	componentDidMount() {
+		this.mounted = true;
+	}
+
+	componentWillUnmount(): void {
+		closeShareExtension();
 		unsubscribeTheme();
 	}
 
 	init = async () => {
-		UserPreferences.getMapAsync(THEME_PREFERENCES_KEY).then((theme: any) => this.setTheme(theme));
-
-		const currentServer = await UserPreferences.getStringAsync(RocketChat.CURRENT_SERVER);
+		const currentServer = UserPreferences.getString(CURRENT_SERVER);
 
 		if (currentServer) {
 			await localAuthenticate(currentServer);
 			this.setState({ root: 'inside' });
-			await RocketChat.shareExtensionInit(currentServer);
-		} else {
+			await shareExtensionInit(currentServer);
+		} else if (this.mounted) {
 			this.setState({ root: 'outside' });
+		} else {
+			// @ts-ignore
+			this.state.root = 'outside';
 		}
 
 		const state = Navigation.navigationRef.current?.getRootState();
@@ -139,7 +141,7 @@ class Root extends React.Component<{}, IState> {
 	setTheme = (newTheme = {}) => {
 		// change theme state
 		this.setState(
-			prevState => newThemeState(prevState, newTheme),
+			prevState => newThemeState(prevState, newTheme as IThemePreference),
 			() => {
 				const { themePreferences } = this.state;
 				// subscribe to Appearance changes
@@ -168,7 +170,7 @@ class Root extends React.Component<{}, IState> {
 		return (
 			<AppearanceProvider>
 				<Provider store={store}>
-					<ThemeContext.Provider value={{ theme }}>
+					<ThemeContext.Provider value={{ theme, colors: colors[theme] }}>
 						<DimensionsContext.Provider
 							value={{
 								width,

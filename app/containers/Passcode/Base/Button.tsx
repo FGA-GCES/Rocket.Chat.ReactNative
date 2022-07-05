@@ -2,33 +2,35 @@ import React from 'react';
 import { Text } from 'react-native';
 
 import styles from './styles';
-import { themes } from '../../../constants/colors';
-import Touch from '../../../utils/touch';
-import { CustomIcon } from '../../../lib/Icons';
+import { themes } from '../../../lib/constants';
+import Touch from '../../../lib/methods/helpers/touch';
+import { CustomIcon, TIconsName } from '../../CustomIcon';
+import { useTheme } from '../../../theme';
 
 interface IPasscodeButton {
-	text: string;
-	icon: string;
-	theme: string;
-	disabled: boolean;
-	onPress: Function;
+	text?: string;
+	icon?: TIconsName;
+	disabled?: boolean;
+	onPress?: Function;
 }
 
-const Button = React.memo(({ text, disabled, theme, onPress, icon }: Partial<IPasscodeButton>) => {
-	const press = () => onPress && onPress(text!);
+const Button = React.memo(({ text, disabled, onPress, icon }: IPasscodeButton) => {
+	const { theme } = useTheme();
+
+	const press = () => onPress && onPress(text);
 
 	return (
 		<Touch
 			style={[styles.buttonView, { backgroundColor: 'transparent' }]}
-			underlayColor={themes[theme!].passcodeButtonActive}
-			rippleColor={themes[theme!].passcodeButtonActive}
+			underlayColor={themes[theme].passcodeButtonActive}
+			rippleColor={themes[theme].passcodeButtonActive}
 			enabled={!disabled}
 			theme={theme}
 			onPress={press}>
 			{icon ? (
-				<CustomIcon name={icon} size={36} color={themes[theme!].passcodePrimary} />
+				<CustomIcon name={icon} size={36} color={themes[theme].passcodePrimary} />
 			) : (
-				<Text style={[styles.buttonText, { color: themes[theme!].passcodePrimary }]}>{text}</Text>
+				<Text style={[styles.buttonText, { color: themes[theme].passcodePrimary }]}>{text}</Text>
 			)}
 		</Touch>
 	);

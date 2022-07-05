@@ -199,6 +199,46 @@ export default schemaMigrations({
 					columns: [{ name: 'md', type: 'string', isOptional: true }]
 				})
 			]
+		},
+		{
+			toVersion: 15,
+			steps: [
+				addColumns({
+					table: 'threads',
+					columns: [{ name: 'draft_message', type: 'string', isOptional: true }]
+				})
+			]
+		},
+		{
+			toVersion: 16,
+			steps: [
+				addColumns({
+					table: 'subscriptions',
+					columns: [{ name: 'source', type: 'string', isOptional: true }]
+				})
+			]
+		},
+		{
+			toVersion: 17,
+			steps: [
+				addColumns({
+					table: 'subscriptions',
+					columns: [{ name: 'on_hold', type: 'boolean', isOptional: true }]
+				}),
+				addColumns({
+					table: 'messages',
+					columns: [{ name: 'comment', type: 'string', isOptional: true }]
+				})
+			]
+		},
+		{
+			toVersion: 18,
+			steps: [
+				addColumns({
+					table: 'subscriptions',
+					columns: [{ name: 'hide_mention_status', type: 'boolean', isOptional: true }]
+				})
+			]
 		}
 	]
 });

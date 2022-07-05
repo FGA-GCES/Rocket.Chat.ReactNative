@@ -1,10 +1,13 @@
 const data = require('../../data');
-const { navigateToLogin, login, tapBack, searchRoom, sleep } = require('../../helpers/app');
+const { navigateToLogin, login, tapBack, searchRoom, sleep, platformTypes } = require('../../helpers/app');
 
 const toBeConverted = `to-be-converted-${data.random}`;
 const toBeMoved = `to-be-moved-${data.random}`;
 
 const createChannel = async room => {
+	await waitFor(element(by.id('rooms-list-view-create-channel')))
+		.toBeVisible()
+		.withTimeout(5000);
 	await element(by.id('rooms-list-view-create-channel')).tap();
 	await waitFor(element(by.id('new-message-view')))
 		.toExist()
@@ -17,7 +20,10 @@ const createChannel = async room => {
 	await waitFor(element(by.id('create-channel-view')))
 		.toExist()
 		.withTimeout(10000);
-	await element(by.id('create-channel-name')).typeText(room);
+	await element(by.id('create-channel-name')).replaceText(room);
+	await waitFor(element(by.id('create-channel-submit')))
+		.toExist()
+		.withTimeout(10000);
 	await element(by.id('create-channel-submit')).tap();
 	await waitFor(element(by.id('room-view')))
 		.toExist()
@@ -51,8 +57,11 @@ async function navigateToRoomActions(room) {
 }
 
 describe('Move/Convert Team', () => {
+	let alertButtonType;
+	let textMatcher;
 	before(async () => {
 		await device.launchApp({ permissions: { notifications: 'YES' }, delete: true });
+		({ alertButtonType, textMatcher } = platformTypes[device.getPlatform()]);
 		await navigateToLogin();
 		await login(data.users.regular.username, data.users.regular.password);
 	});
@@ -69,10 +78,10 @@ describe('Move/Convert Team', () => {
 				.toExist()
 				.withTimeout(2000);
 			await element(by.id('room-actions-convert-to-team')).tap();
-			await waitFor(element(by.label('You are converting this Channel to a Team. All Members will be kept.')))
+			await waitFor(element(by[textMatcher]('You are converting this Channel to a Team. All Members will be kept.')))
 				.toExist()
 				.withTimeout(2000);
-			await element(by.text('Convert')).tap();
+			await element(by[textMatcher]('Convert').and(by.type(alertButtonType))).tap();
 			await waitFor(element(by.id('room-view')))
 				.toExist()
 				.withTimeout(20000);
@@ -101,12 +110,14 @@ describe('Move/Convert Team', () => {
 				.toExist()
 				.withTimeout(2000);
 			await element(by.id('room-actions-move-to-team')).tap();
-			await waitFor(element(by.id('select-list-view')))
+			await waitFor(element(by[textMatcher]('Move to Team')).atIndex(0))
+				.toExist()
+				.withTimeout(2000);
+			await waitFor(element(by.id('select-list-view-submit')))
 				.toExist()
 				.withTimeout(2000);
 			await element(by.id('select-list-view-submit')).tap();
-			await sleep(2000);
-			await waitFor(element(by.id('select-list-view')))
+			await waitFor(element(by[textMatcher]('Select Team')))
 				.toExist()
 				.withTimeout(2000);
 			await waitFor(element(by.id(`select-list-view-item-${toBeConverted}`)))
@@ -116,14 +127,14 @@ describe('Move/Convert Team', () => {
 			await element(by.id('select-list-view-submit')).atIndex(0).tap();
 			await waitFor(
 				element(
-					by.label(
+					by[textMatcher](
 						'After reading the previous intructions about this behavior, do you still want to move this channel to the selected team?'
 					)
 				)
 			)
 				.toExist()
 				.withTimeout(2000);
-			await element(by.text('Yes, move it!')).tap();
+			await element(by[textMatcher]('Yes, move it!').and(by.type(alertButtonType))).tap();
 			await waitFor(element(by.id('room-view-header-team-channels')))
 				.toExist()
 				.withTimeout(10000);
@@ -141,12 +152,11 @@ describe('Move/Convert Team', () => {
 		it('should convert a team to a channel', async () => {
 			await navigateToRoomActions(toBeConverted);
 			await element(by.id('room-actions-scrollview')).scrollTo('bottom');
-			await waitFor(element(by.id('room-actions-convert-channel-to-team')))
+			await waitFor(element(by[textMatcher]('Convert to Channel')))
 				.toExist()
 				.withTimeout(2000);
-			await element(by.id('room-actions-convert-channel-to-team')).tap();
-			await sleep(2000);
-			await waitFor(element(by.id('select-list-view')))
+			await element(by[textMatcher]('Convert to Channel')).atIndex(0).tap();
+			await waitFor(element(by[textMatcher]('Converting Team to Channel')))
 				.toExist()
 				.withTimeout(2000);
 			await waitFor(element(by.id(`select-list-view-item-${toBeMoved}`)))
@@ -157,10 +167,10 @@ describe('Move/Convert Team', () => {
 				.toExist()
 				.withTimeout(2000);
 			await element(by.id('select-list-view-submit')).tap();
-			await waitFor(element(by.label('You are converting this Team to a Channel')))
+			await waitFor(element(by[textMatcher]('You are converting this Team to a Channel')))
 				.toExist()
 				.withTimeout(2000);
-			await element(by.text('Convert')).tap();
+			await element(by[textMatcher]('Convert').and(by.type(alertButtonType))).tap();
 			await waitFor(element(by.id('room-view')))
 				.toExist()
 				.withTimeout(20000);

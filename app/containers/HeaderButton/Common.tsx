@@ -1,25 +1,27 @@
 import React from 'react';
 
-import { isIOS } from '../../utils/deviceInfo';
+import { isIOS } from '../../lib/methods/helpers';
 import I18n from '../../i18n';
 import Container from './HeaderButtonContainer';
 import Item from './HeaderButtonItem';
 
 interface IHeaderButtonCommon {
-	navigation: any;
-	onPress?(): void;
+	navigation?: any; // TODO: Evaluate proper type
+	onPress?: () => void;
 	testID?: string;
 }
 
 // Left
-export const Drawer = React.memo(({ navigation, testID, ...props }: Partial<IHeaderButtonCommon>) => (
-	<Container left>
-		<Item iconName='hamburguer' onPress={() => navigation.toggleDrawer()} testID={testID} {...props} />
-	</Container>
-));
+export const Drawer = React.memo(
+	({ navigation, testID, onPress = () => navigation?.toggleDrawer(), ...props }: IHeaderButtonCommon) => (
+		<Container left>
+			<Item iconName='hamburguer' onPress={onPress} testID={testID} {...props} />
+		</Container>
+	)
+);
 
 export const CloseModal = React.memo(
-	({ navigation, testID, onPress = () => navigation.pop(), ...props }: IHeaderButtonCommon) => (
+	({ navigation, testID, onPress = () => navigation?.pop(), ...props }: IHeaderButtonCommon) => (
 		<Container left>
 			<Item iconName='close' onPress={onPress} testID={testID} {...props} />
 		</Container>
@@ -43,18 +45,20 @@ export const More = React.memo(({ onPress, testID }: Partial<IHeaderButtonCommon
 	</Container>
 ));
 
-export const Download = React.memo(({ onPress, testID, ...props }: Partial<IHeaderButtonCommon>) => (
+export const Download = React.memo(({ onPress, testID, ...props }: IHeaderButtonCommon) => (
 	<Container>
 		<Item iconName='download' onPress={onPress} testID={testID} {...props} />
 	</Container>
 ));
 
-export const Preferences = React.memo(({ onPress, testID, ...props }: Partial<IHeaderButtonCommon>) => (
+export const Preferences = React.memo(({ onPress, testID, ...props }: IHeaderButtonCommon) => (
 	<Container>
 		<Item iconName='settings' onPress={onPress} testID={testID} {...props} />
 	</Container>
 ));
 
-export const Legal = React.memo(({ navigation, testID }: Partial<IHeaderButtonCommon>) => (
-	<More onPress={() => navigation.navigate('LegalView')} testID={testID} />
-));
+export const Legal = React.memo(
+	({ navigation, testID, onPress = () => navigation?.navigate('LegalView') }: IHeaderButtonCommon) => (
+		<More onPress={onPress} testID={testID} />
+	)
+);

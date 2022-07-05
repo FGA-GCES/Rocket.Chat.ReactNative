@@ -5,8 +5,8 @@ import ShareExtension from 'rn-extensions-share';
 import * as HeaderButton from '../containers/HeaderButton';
 import sharedStyles from './Styles';
 import I18n from '../i18n';
-import { themes } from '../constants/colors';
-import { withTheme } from '../theme';
+import { themes } from '../lib/constants';
+import { TSupportedThemes, withTheme } from '../theme';
 
 const styles = StyleSheet.create({
 	container: {
@@ -26,7 +26,11 @@ const styles = StyleSheet.create({
 	}
 });
 
-class WithoutServerView extends React.Component<any, any> {
+interface IWithoutServerViewProps {
+	theme: TSupportedThemes;
+}
+
+class WithoutServerView extends React.Component<IWithoutServerViewProps> {
 	static navigationOptions = () => ({
 		title: 'Rocket.Chat',
 		headerLeft: () => <HeaderButton.CancelModal onPress={ShareExtension.close} testID='share-extension-close' />

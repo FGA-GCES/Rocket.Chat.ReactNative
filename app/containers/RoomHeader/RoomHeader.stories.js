@@ -2,13 +2,16 @@
 import React from 'react';
 import { Dimensions, View } from 'react-native';
 import { storiesOf } from '@storybook/react-native';
+import { Provider } from 'react-redux';
 
 import Header from '../Header';
 import { longText } from '../../../storybook/utils';
 import { ThemeContext } from '../../theme';
+import { store } from '../../../storybook/stories';
+import { colors } from '../../lib/constants';
 import RoomHeaderComponent from './RoomHeader';
 
-const stories = storiesOf('RoomHeader', module);
+const stories = storiesOf('RoomHeader', module).addDecorator(story => <Provider store={store}>{story()}</Provider>);
 
 // TODO: refactor after react-navigation v6
 const HeaderExample = ({ title }) => (
@@ -80,7 +83,7 @@ stories.add('thread', () => (
 ));
 
 const ThemeStory = ({ theme }) => (
-	<ThemeContext.Provider value={{ theme }}>
+	<ThemeContext.Provider value={{ theme, colors: colors[theme] }}>
 		<HeaderExample title={() => <RoomHeader subtitle='subtitle' />} />
 	</ThemeContext.Provider>
 );

@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useContext, memo, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { connect } from 'react-redux';
 
-import Navigation from './lib/Navigation';
-import { defaultHeader, getActiveRouteName, navigationTheme } from './utils/navigation';
-import { ROOT_INSIDE, ROOT_LOADING, ROOT_OUTSIDE, ROOT_SET_USERNAME } from './actions/app';
+import { SetUsernameStackParamList, StackParamList } from './definitions/navigationTypes';
+import Navigation from './lib/navigation/appNavigation';
+import { defaultHeader, getActiveRouteName, navigationTheme } from './lib/methods/helpers/navigation';
+import { RootEnum } from './definitions';
 // Stacks
 import AuthLoadingView from './views/AuthLoadingView';
 // SetUsername Stack
@@ -14,10 +15,10 @@ import OutsideStack from './stacks/OutsideStack';
 import InsideStack from './stacks/InsideStack';
 import MasterDetailStack from './stacks/MasterDetailStack';
 import { ThemeContext } from './theme';
-import { setCurrentScreen } from './utils/log';
+import { setCurrentScreen } from './lib/methods/helpers/log';
 
 // SetUsernameStack
-const SetUsername = createStackNavigator();
+const SetUsername = createStackNavigator<SetUsernameStackParamList>();
 const SetUsernameStack = () => (
 	<SetUsername.Navigator screenOptions={defaultHeader}>
 		<SetUsername.Screen name='SetUsernameView' component={SetUsernameView} />
@@ -25,21 +26,23 @@ const SetUsernameStack = () => (
 );
 
 // App
-const Stack = createStackNavigator();
-const App = React.memo(({ root, isMasterDetail }: { root: string; isMasterDetail: boolean }) => {
+const Stack = createStackNavigator<StackParamList>();
+const App = memo(({ root, isMasterDetail }: { root: string; isMasterDetail: boolean }) => {
+	const { theme } = useContext(ThemeContext);
+	useEffect(() => {
+		if (root) {
+			const state = Navigation.navigationRef.current?.getRootState();
+			const currentRouteName = getActiveRouteName(state);
+			Navigation.routeNameRef.current = currentRouteName;
+			setCurrentScreen(currentRouteName);
+		}
+	}, [root]);
+
 	if (!root) {
 		return null;
 	}
 
-	const { theme } = React.useContext(ThemeContext);
 	const navTheme = navigationTheme(theme);
-
-	React.useEffect(() => {
-		const state = Navigation.navigationRef.current?.getRootState();
-		const currentRouteName = getActiveRouteName(state);
-		Navigation.routeNameRef.current = currentRouteName;
-		setCurrentScreen(currentRouteName);
-	}, []);
 
 	return (
 		<NavigationContainer
@@ -55,13 +58,13 @@ const App = React.memo(({ root, isMasterDetail }: { root: string; isMasterDetail
 			}}>
 			<Stack.Navigator screenOptions={{ headerShown: false, animationEnabled: false }}>
 				<>
-					{root === ROOT_LOADING ? <Stack.Screen name='AuthLoading' component={AuthLoadingView} /> : null}
-					{root === ROOT_OUTSIDE ? <Stack.Screen name='OutsideStack' component={OutsideStack} /> : null}
-					{root === ROOT_INSIDE && isMasterDetail ? (
+					{root === RootEnum.ROOT_LOADING ? <Stack.Screen name='AuthLoading' component={AuthLoadingView} /> : null}
+					{root === RootEnum.ROOT_OUTSIDE ? <Stack.Screen name='OutsideStack' component={OutsideStack} /> : null}
+					{root === RootEnum.ROOT_INSIDE && isMasterDetail ? (
 						<Stack.Screen name='MasterDetailStack' component={MasterDetailStack} />
 					) : null}
-					{root === ROOT_INSIDE && !isMasterDetail ? <Stack.Screen name='InsideStack' component={InsideStack} /> : null}
-					{root === ROOT_SET_USERNAME ? <Stack.Screen name='SetUsernameStack' component={SetUsernameStack} /> : null}
+					{root === RootEnum.ROOT_INSIDE && !isMasterDetail ? <Stack.Screen name='InsideStack' component={InsideStack} /> : null}
+					{root === RootEnum.ROOT_SET_USERNAME ? <Stack.Screen name='SetUsernameStack' component={SetUsernameStack} /> : null}
 				</>
 			</Stack.Navigator>
 		</NavigationContainer>

@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { Text } from 'react-native';
 
-import debounce from '../../utils/debounce';
-import { avatarURL } from '../../utils/avatar';
-import RocketChat from '../../lib/rocketchat';
-import I18n from '../../i18n';
+import { themes } from '../../lib/constants';
 import { MultiSelect } from '../../containers/UIKit/MultiSelect';
-import { themes } from '../../constants/colors';
-import styles from './styles';
+import { ISearchLocal } from '../../definitions';
+import I18n from '../../i18n';
+import { getAvatarURL } from '../../lib/methods/helpers/getAvatarUrl';
 import { ICreateDiscussionViewSelectChannel } from './interfaces';
+import styles from './styles';
+import { localSearch } from '../../lib/methods';
+import { getRoomAvatar, getRoomTitle, debounce } from '../../lib/methods/helpers';
 
 const SelectChannel = ({
 	server,
@@ -19,25 +20,24 @@ const SelectChannel = ({
 	blockUnauthenticatedAccess,
 	serverVersion,
 	theme
-}: ICreateDiscussionViewSelectChannel): JSX.Element => {
-	const [channels, setChannels] = useState([]);
+}: ICreateDiscussionViewSelectChannel): React.ReactElement => {
+	const [channels, setChannels] = useState<ISearchLocal[]>([]);
 
 	const getChannels = debounce(async (keyword = '') => {
 		try {
-			const res = await RocketChat.localSearch({ text: keyword });
+			const res = (await localSearch({ text: keyword })) as ISearchLocal[];
 			setChannels(res);
 		} catch {
 			// do nothing
 		}
 	}, 300);
 
-	const getAvatar = (item: any) =>
-		// TODO: remove this ts-ignore when migrate the file: app/utils/avatar.js
-		// @ts-ignore
-		avatarURL({
-			text: RocketChat.getRoomAvatar(item),
+	const getAvatar = (item: ISearchLocal) =>
+		getAvatarURL({
+			text: getRoomAvatar(item),
 			type: item.t,
-			user: { id: userId, token },
+			userId,
+			token,
 			server,
 			avatarETag: item.avatarETag,
 			rid: item.rid,
@@ -49,15 +49,14 @@ const SelectChannel = ({
 		<>
 			<Text style={[styles.label, { color: themes[theme].titleText }]}>{I18n.t('Parent_channel_or_group')}</Text>
 			<MultiSelect
-				theme={theme}
 				inputStyle={styles.inputStyle}
 				onChange={onChannelSelect}
 				onSearch={getChannels}
 				value={initial && [initial]}
-				disabled={initial}
+				disabled={!!initial}
 				options={channels.map(channel => ({
 					value: channel,
-					text: { text: RocketChat.getRoomTitle(channel) },
+					text: { text: getRoomTitle(channel) },
 					imageUrl: getAvatar(channel)
 				}))}
 				onClose={() => setChannels([])}
