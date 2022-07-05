@@ -1,18 +1,16 @@
 import { Alert } from 'react-native';
 import prompt from 'react-native-prompt-android';
-import {
-	takeLatest, take, select, delay, race, put
-} from 'redux-saga/effects';
+import { delay, put, race, select, take, takeLatest } from 'redux-saga/effects';
 
 import EventEmitter from '../utils/events';
-import Navigation from '../lib/Navigation';
+import Navigation from '../lib/navigation/appNavigation';
 import * as types from '../actions/actionsTypes';
 import { removedRoom } from '../actions/room';
-import RocketChat from '../lib/rocketchat';
-import log, { logEvent, events } from '../utils/log';
+import log, { events, logEvent } from '../utils/log';
 import I18n from '../i18n';
 import { showErrorAlert } from '../utils/info';
 import { LISTENER } from '../containers/Toast';
+import { Services } from '../lib/services';
 
 const watchUserTyping = function* watchUserTyping({ rid, status }) {
 	const auth = yield select(state => state.login.isAuthenticated);
@@ -21,11 +19,11 @@ const watchUserTyping = function* watchUserTyping({ rid, status }) {
 	}
 
 	try {
-		yield RocketChat.emitTyping(rid, status);
+		yield Services.emitTyping(rid, status);
 
 		if (status) {
 			yield delay(5000);
-			yield RocketChat.emitTyping(rid, false);
+			yield Services.emitTyping(rid, false);
 		}
 	} catch (e) {
 		log(e);
@@ -41,12 +39,15 @@ const handleRemovedRoom = function* handleRemovedRoom(roomType, actionType) {
 	}
 
 	if (actionType === 'leave') {
-		EventEmitter.emit(LISTENER, { message: roomType === 'team' ? I18n.t('Left_The_Team_Successfully') : I18n.t('Left_The_Room_Successfully') });
+		EventEmitter.emit(LISTENER, {
+			message: roomType === 'team' ? I18n.t('Left_The_Team_Successfully') : I18n.t('Left_The_Room_Successfully')
+		});
 	}
 	if (actionType === 'delete') {
-		EventEmitter.emit(LISTENER, { message: roomType === 'team' ? I18n.t('Deleted_The_Team_Successfully') : I18n.t('Deleted_The_Room_Successfully') });
+		EventEmitter.emit(LISTENER, {
+			message: roomType === 'team' ? I18n.t('Deleted_The_Team_Successfully') : I18n.t('Deleted_The_Room_Successfully')
+		});
 	}
-
 
 	// types.ROOM.REMOVE is triggered by `subscriptions-changed` with `removed` arg
 	const { timeout } = yield race({
@@ -64,9 +65,9 @@ const handleLeaveRoom = function* handleLeaveRoom({ room, roomType, selected }) 
 		let result = {};
 
 		if (roomType === 'channel') {
-			result = yield RocketChat.leaveRoom(room.rid, room.t);
+			result = yield Services.leaveRoom(room.rid, room.t);
 		} else if (roomType === 'team') {
-			result = yield RocketChat.leaveTeam({ teamName: room.name, ...(selected && { rooms: selected }) });
+			result = yield Services.leaveTeam({ teamId: room.teamId, ...(selected && { rooms: selected }) });
 		}
 
 		if (result?.success) {
@@ -90,9 +91,9 @@ const handleDeleteRoom = function* handleDeleteRoom({ room, roomType, selected }
 		let result = {};
 
 		if (roomType === 'channel') {
-			result = yield RocketChat.deleteRoom(room.rid, room.t);
+			result = yield Services.deleteRoom(room.rid || room._id, room.t);
 		} else if (roomType === 'team') {
-			result = yield RocketChat.deleteTeam({ teamId: room.teamId, ...(selected && { roomsToRemove: selected }) });
+			result = yield Services.deleteTeam({ teamId: room.teamId, ...(selected && { roomsToRemove: selected }) });
 		}
 
 		if (result?.success) {
@@ -100,7 +101,12 @@ const handleDeleteRoom = function* handleDeleteRoom({ room, roomType, selected }
 		}
 	} catch (e) {
 		logEvent(events.RI_EDIT_DELETE_F);
-		Alert.alert(I18n.t('Oops'), I18n.t('There_was_an_error_while_action', { action: roomType === 'team' ? I18n.t('deleting_team') : I18n.t('deleting_room') }));
+		Alert.alert(
+			I18n.t('Oops'),
+			I18n.t('There_was_an_error_while_action', {
+				action: roomType === 'team' ? I18n.t('deleting_team') : I18n.t('deleting_room')
+			})
+		);
 	}
 };
 
@@ -108,9 +114,9 @@ const handleCloseRoom = function* handleCloseRoom({ rid }) {
 	const isMasterDetail = yield select(state => state.app.isMasterDetail);
 	const requestComment = yield select(state => state.settings.Livechat_request_comment_when_closing_conversation);
 
-	const closeRoom = async(comment = '') => {
+	const closeRoom = async (comment = '') => {
 		try {
-			await RocketChat.closeLivechat(rid, comment);
+			await Services.closeLivechat(rid, comment);
 			if (isMasterDetail) {
 				Navigation.navigate('DrawerNavigator');
 			} else {
@@ -130,7 +136,7 @@ const handleCloseRoom = function* handleCloseRoom({ rid }) {
 		I18n.t('Closing_chat'),
 		I18n.t('Please_add_a_comment'),
 		[
-			{ text: I18n.t('Cancel'), onPress: () => { }, style: 'cancel' },
+			{ text: I18n.t('Cancel'), onPress: () => {}, style: 'cancel' },
 			{
 				text: I18n.t('Submit'),
 				onPress: comment => closeRoom(comment)
@@ -144,7 +150,7 @@ const handleCloseRoom = function* handleCloseRoom({ rid }) {
 
 const handleForwardRoom = function* handleForwardRoom({ transferData }) {
 	try {
-		const result = yield RocketChat.forwardLivechat(transferData);
+		const result = yield Services.forwardLivechat(transferData);
 		if (result === true) {
 			const isMasterDetail = yield select(state => state.app.isMasterDetail);
 			if (isMasterDetail) {

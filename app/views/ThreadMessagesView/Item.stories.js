@@ -2,13 +2,13 @@
 import React from 'react';
 import { storiesOf } from '@storybook/react-native';
 import { ScrollView } from 'react-native';
-import { combineReducers, createStore } from 'redux';
 import { Provider } from 'react-redux';
 
-import Item from './Item';
 import * as List from '../../containers/List';
-import { themes } from '../../constants/colors';
+import { themes } from '../../lib/constants';
 import { ThemeContext } from '../../theme';
+import { store } from '../../../storybook/stories';
+import Item from './Item';
 
 const author = {
 	_id: 'userid',
@@ -17,7 +17,8 @@ const author = {
 };
 const baseUrl = 'https://open.rocket.chat';
 const date = new Date(2020, 10, 10, 10);
-const longText = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.';
+const longText =
+	'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.';
 const defaultItem = {
 	msg: 'Message content',
 	tcount: 1,
@@ -47,28 +48,6 @@ const listDecorator = story => (
 		<List.Separator />
 	</ScrollView>
 );
-
-const reducers = combineReducers({
-	login: () => ({
-		user: {
-			id: 'abc',
-			username: 'rocket.cat',
-			name: 'Rocket Cat'
-		}
-	}),
-	server: () => ({
-		server: 'https://open.rocket.chat',
-		version: '3.7.0'
-	}),
-	share: () => ({
-		server: 'https://open.rocket.chat',
-		version: '3.7.0'
-	}),
-	settings: () => ({
-		blockUnauthenticatedAccess: false
-	})
-});
-const store = createStore(reducers);
 
 const stories = storiesOf('Thread Messages.Item', module)
 	.addDecorator(listDecorator)
@@ -104,17 +83,11 @@ stories.add('content', () => (
 
 stories.add('badge', () => (
 	<>
-		<BaseItem
-			badgeColor={themes.light.mentionMeColor}
-		/>
+		<BaseItem badgeColor={themes.light.mentionMeColor} />
 		<List.Separator />
-		<BaseItem
-			badgeColor={themes.light.mentionGroupColor}
-		/>
+		<BaseItem badgeColor={themes.light.mentionGroupColor} />
 		<List.Separator />
-		<BaseItem
-			badgeColor={themes.light.tunreadColor}
-		/>
+		<BaseItem badgeColor={themes.light.tunreadColor} />
 		<BaseItem
 			item={{
 				msg: longText
@@ -125,12 +98,8 @@ stories.add('badge', () => (
 ));
 
 const ThemeStory = ({ theme }) => (
-	<ThemeContext.Provider
-		value={{ theme }}
-	>
-		<BaseItem
-			badgeColor={themes[theme].mentionMeColor}
-		/>
+	<ThemeContext.Provider value={{ theme }}>
+		<BaseItem badgeColor={themes[theme].mentionMeColor} />
 	</ThemeContext.Provider>
 );
 

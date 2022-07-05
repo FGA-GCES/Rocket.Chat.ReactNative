@@ -1,12 +1,12 @@
 /* eslint-disable import/no-extraneous-dependencies */
 import React from 'react';
-import { ScrollView, Dimensions } from 'react-native';
+import { Dimensions, ScrollView } from 'react-native';
 import { storiesOf } from '@storybook/react-native';
 import { Provider } from 'react-redux';
 
-import { themes } from '../../app/constants/colors';
-import RoomItemComponent from '../../app/presentation/RoomItem/RoomItem';
+import RoomItemComponent from '../../app/containers/RoomItem/RoomItem';
 import { longText } from '../utils';
+import { DisplayMode, themes } from '../../app/lib/constants';
 import { store } from './index';
 
 const baseUrl = 'https://open.rocket.chat';
@@ -30,6 +30,8 @@ const RoomItem = props => (
 		baseUrl={baseUrl}
 		width={width}
 		theme={_theme}
+		showAvatar
+		displayMode={DisplayMode.Expanded}
 		{...updatedAt}
 		{...props}
 	/>
@@ -39,21 +41,14 @@ const stories = storiesOf('Room Item', module)
 	.addDecorator(story => <Provider store={store}>{story()}</Provider>)
 	.addDecorator(story => <ScrollView style={{ backgroundColor: themes[_theme].backgroundColor }}>{story()}</ScrollView>);
 
+stories.add('Basic', () => <RoomItem />);
 
-stories.add('Basic', () => (
-	<RoomItem />
-));
-
-stories.add('Touch', () => (
-	<RoomItem onPress={() => alert('on press')} onLongPress={() => alert('on long press')} />
-));
+stories.add('Touch', () => <RoomItem onPress={() => alert('on press')} onLongPress={() => alert('on long press')} />);
 
 stories.add('User', () => (
 	<>
 		<RoomItem name='diego.mello' avatar='diego.mello' />
-		<RoomItem
-			name={longText}
-		/>
+		<RoomItem name={longText} />
 	</>
 ));
 
@@ -107,9 +102,7 @@ stories.add('Tag', () => (
 
 stories.add('Last Message', () => (
 	<>
-		<RoomItem
-			showLastMessage
-		/>
+		<RoomItem showLastMessage />
 		<RoomItem
 			showLastMessage
 			lastMessage={{
@@ -129,27 +122,78 @@ stories.add('Last Message', () => (
 			}}
 			username='diego.mello'
 		/>
-		<RoomItem
-			showLastMessage
-			lastMessage={lastMessage}
-		/>
-		<RoomItem
-			showLastMessage
-			alert
-			unread={1}
-			lastMessage={lastMessage}
-		/>
-		<RoomItem
-			showLastMessage
-			alert
-			unread={1000}
-			lastMessage={lastMessage}
-		/>
+		<RoomItem showLastMessage lastMessage={lastMessage} />
+		<RoomItem showLastMessage alert unread={1} lastMessage={lastMessage} />
+		<RoomItem showLastMessage alert unread={1000} lastMessage={lastMessage} />
+		<RoomItem showLastMessage alert tunread={[1]} lastMessage={lastMessage} />
+	</>
+));
+
+stories.add('Condensed Room Item', () => (
+	<>
+		<RoomItem showLastMessage alert tunread={[1]} lastMessage={lastMessage} displayMode={DisplayMode.Condensed} />
+		<RoomItem showLastMessage alert name='unread' unread={1000} displayMode={DisplayMode.Condensed} />
+
+		<RoomItem type='c' displayMode={DisplayMode.Condensed} autoJoin />
+	</>
+));
+
+stories.add('Condensed Room Item without Avatar', () => (
+	<>
 		<RoomItem
 			showLastMessage
 			alert
 			tunread={[1]}
 			lastMessage={lastMessage}
+			displayMode={DisplayMode.Condensed}
+			showAvatar={false}
 		/>
+		<RoomItem type='p' displayMode={DisplayMode.Condensed} showAvatar={false} />
+		<RoomItem name={longText} autoJoin displayMode={DisplayMode.Condensed} showAvatar={false} />
+	</>
+));
+
+stories.add('Expanded Room Item without Avatar', () => (
+	<>
+		<RoomItem
+			showLastMessage
+			alert
+			tunread={[1]}
+			lastMessage={lastMessage}
+			displayMode={DisplayMode.Expanded}
+			showAvatar={false}
+		/>
+		<RoomItem
+			status='online'
+			showLastMessage
+			alert
+			tunread={[1]}
+			lastMessage={lastMessage}
+			displayMode={DisplayMode.Expanded}
+			showAvatar={false}
+		/>
+		<RoomItem
+			status='online'
+			showLastMessage
+			alert
+			lastMessage={lastMessage}
+			displayMode={DisplayMode.Expanded}
+			showAvatar={false}
+		/>
+	</>
+));
+
+stories.add('Omnichannel Icon', () => (
+	<>
+		<RoomItem type='l' sourceType={{ type: 'widget' }} status='online' />
+		<RoomItem type='l' sourceType={{ type: 'widget' }} status='away' />
+		<RoomItem type='l' sourceType={{ type: 'widget' }} status='loading' />
+		<RoomItem type='l' sourceType={{ type: 'widget' }} />
+		<RoomItem type='l' sourceType={{ type: 'email' }} status='online' />
+		<RoomItem type='l' sourceType={{ type: 'email' }} />
+		<RoomItem type='l' sourceType={{ type: 'sms' }} status='online' />
+		<RoomItem type='l' sourceType={{ type: 'sms' }} />
+		<RoomItem type='l' sourceType={{ type: 'other' }} status='online' />
+		<RoomItem type='l' sourceType={{ type: 'other' }} />
 	</>
 ));

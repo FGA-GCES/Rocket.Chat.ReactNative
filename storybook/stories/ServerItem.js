@@ -1,8 +1,7 @@
-/* eslint-disable import/no-extraneous-dependencies, import/no-unresolved, import/extensions, react/prop-types */
 import React from 'react';
 import { storiesOf } from '@storybook/react-native';
 
-import ServerItemComponent from '../../app/presentation/ServerItem';
+import ServerItemComponent from '../../app/containers/ServerItem';
 import { ThemeContext } from '../../app/theme';
 
 const stories = storiesOf('ServerItem', module);
@@ -19,19 +18,22 @@ const item = {
 	iconURL: 'https://open.rocket.chat/images/logo/android-chrome-512x512.png'
 };
 
-const ServerItem = props => (
-	<ServerItemComponent
-		item={item}
-		hasCheck={false}
-		{...props}
-	/>
+const ServerItem = ({ theme = themes.light, ...props }) => (
+	<ThemeContext.Provider
+		value={{
+			theme,
+			themePreferences: {
+				currentTheme: theme,
+				darkLevel: theme
+			}
+		}}>
+		<ServerItemComponent item={item} hasCheck={false} {...props} />
+	</ThemeContext.Provider>
 );
 
 stories.add('content', () => (
 	<>
-		<ServerItem
-			hasCheck
-		/>
+		<ServerItem hasCheck />
 		<ServerItem
 			item={{
 				...item,
@@ -55,19 +57,10 @@ stories.add('touchable', () => (
 	</>
 ));
 
-const ThemeStory = ({ theme }) => (
-	<ThemeContext.Provider value={theme}>
-		<ServerItem
-			theme={theme}
-			hasCheck
-		/>
-	</ThemeContext.Provider>
-);
-
 stories.add('themes', () => (
 	<>
-		<ThemeStory theme={themes.light} />
-		<ThemeStory theme={themes.dark} />
-		<ThemeStory theme={themes.black} />
+		<ServerItem theme={themes.light} />
+		<ServerItem theme={themes.dark} />
+		<ServerItem theme={themes.black} />
 	</>
 ));

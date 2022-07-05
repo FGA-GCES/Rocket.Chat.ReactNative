@@ -3,7 +3,7 @@ import React from 'react';
 import { storiesOf } from '@storybook/react-native';
 import { View } from 'react-native';
 
-import UnreadBadge from '../../app/presentation/UnreadBadge';
+import UnreadBadge from '../../app/containers/UnreadBadge';
 import { ThemeContext } from '../../app/theme';
 
 const stories = storiesOf('Unread Badge', module);
@@ -11,9 +11,11 @@ const stories = storiesOf('Unread Badge', module);
 const StoryTester = ({ children }) => (
 	<View
 		style={{
-			flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly'
-		}}
-	>
+			flex: 1,
+			flexDirection: 'row',
+			alignItems: 'center',
+			justifyContent: 'space-evenly'
+		}}>
 		{children}
 	</View>
 );
@@ -57,9 +59,7 @@ stories.add('different mention types', () => (
 ));
 
 const ThemeStory = ({ theme }) => (
-	<ThemeContext.Provider
-		value={{ theme }}
-	>
+	<ThemeContext.Provider value={{ theme }}>
 		<StoryTester>
 			<UnreadBadge unread={1} />
 			<UnreadBadge unread={1} userMentions={1} />

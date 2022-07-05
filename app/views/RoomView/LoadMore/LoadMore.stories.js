@@ -3,14 +3,11 @@ import React from 'react';
 import { ScrollView } from 'react-native';
 import { storiesOf } from '@storybook/react-native';
 
-import LoadMore from './index';
 import { longText } from '../../../../storybook/utils';
 import { ThemeContext } from '../../../theme';
-import {
-	Message, StoryProvider, MessageDecorator
-} from '../../../../storybook/stories/Message';
-import { themes } from '../../../constants/colors';
-import { MESSAGE_TYPE_LOAD_MORE, MESSAGE_TYPE_LOAD_NEXT_CHUNK, MESSAGE_TYPE_LOAD_PREVIOUS_CHUNK } from '../../../constants/messageTypeLoad';
+import { Message, MessageDecorator, StoryProvider } from '../../../../storybook/stories/Message';
+import { MessageTypeLoad, themes } from '../../../lib/constants';
+import LoadMore from './index';
 
 const stories = storiesOf('LoadMore', module);
 
@@ -21,22 +18,20 @@ stories.add('basic', () => (
 	<>
 		<LoadMore load={load} />
 		<LoadMore load={load} runOnRender />
-		<LoadMore load={load} type={MESSAGE_TYPE_LOAD_PREVIOUS_CHUNK} />
-		<LoadMore load={load} type={MESSAGE_TYPE_LOAD_NEXT_CHUNK} />
+		<LoadMore load={load} type={MessageTypeLoad.PREVIOUS_CHUNK} />
+		<LoadMore load={load} type={MessageTypeLoad.NEXT_CHUNK} />
 	</>
 ));
 
 const ThemeStory = ({ theme }) => (
-	<ThemeContext.Provider
-		value={{ theme }}
-	>
+	<ThemeContext.Provider value={{ theme }}>
 		<ScrollView style={{ backgroundColor: themes[theme].backgroundColor }}>
-			<LoadMore load={load} type={MESSAGE_TYPE_LOAD_PREVIOUS_CHUNK} />
+			<LoadMore load={load} type={MessageTypeLoad.PREVIOUS_CHUNK} />
 			<Message msg='Hey!' theme={theme} />
 			<Message msg={longText} theme={theme} isHeader={false} />
 			<Message msg='Older message' theme={theme} isHeader={false} />
-			<LoadMore load={load} type={MESSAGE_TYPE_LOAD_NEXT_CHUNK} />
-			<LoadMore load={load} type={MESSAGE_TYPE_LOAD_MORE} />
+			<LoadMore load={load} type={MessageTypeLoad.NEXT_CHUNK} />
+			<LoadMore load={load} type={MessageTypeLoad.MORE} />
 			<Message msg={longText} theme={theme} />
 			<Message msg='This is the third message' isHeader={false} theme={theme} />
 			<Message msg='This is the second message' isHeader={false} theme={theme} />
@@ -59,4 +54,3 @@ stories
 	.addDecorator(StoryProvider)
 	.addDecorator(MessageDecorator)
 	.add('black theme', () => <ThemeStory theme='black' />);
-
