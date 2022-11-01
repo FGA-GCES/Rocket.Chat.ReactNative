@@ -4155,10 +4155,10 @@
     tiny-events "^1.0.1"
     universal-websocket-client "^1.0.2"
 
-"@rocket.chat/ui-kit@^0.31.13":
-  version "0.31.13"
-  resolved "https://registry.yarnpkg.com/@rocket.chat/ui-kit/-/ui-kit-0.31.13.tgz#bd1c8a8726a74e13d072bb6f67cb2a6d3ba66e3b"
-  integrity sha512-IWNIRca0fP8Ecka3DIvqZKF7PbjcUaS+LkWUbMa+9lkX6MeumZrpFqsf7MKUpT+ihJr0RD4lBybmEgFH2syDbw==
+"@rocket.chat/ui-kit@^0.31.21":
+  version "0.31.21"
+  resolved "https://registry.yarnpkg.com/@rocket.chat/ui-kit/-/ui-kit-0.31.21.tgz#571c5360844a037010d54fc3615af29a22206215"
+  integrity sha512-RJBHEaSWNtpNFCnPj35WdvPffdwAmpul5Z0Z7vkvbj2+BLPdZIorZ/zqQNwu+xOiVPQxNgm9fwCs8KzxXxSGVg==
 
 "@sideway/address@^4.1.3":
   version "4.1.4"
