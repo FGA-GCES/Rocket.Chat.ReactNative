@@ -1,6 +1,5 @@
 import React from 'react';
 import { Dimensions, Linking } from 'react-native';
-import { AppearanceProvider } from 'react-native-appearance';
 import { KeyCommandsEmitter } from 'react-native-keycommands';
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 import RNScreens from 'react-native-screens';
@@ -15,6 +14,7 @@ import { ActionSheetProvider } from './containers/ActionSheet';
 import InAppNotification from './containers/InAppNotification';
 import Toast from './containers/Toast';
 import TwoFactor from './containers/TwoFactor';
+import Loading from './containers/Loading';
 import { ICommand } from './definitions/ICommand';
 import { IThemePreference } from './definitions/ITheme';
 import { DimensionsContext } from './dimensions';
@@ -28,7 +28,14 @@ import { ThemeContext, TSupportedThemes } from './theme';
 import { debounce, isTablet } from './lib/methods/helpers';
 import EventEmitter from './lib/methods/helpers/events';
 import { toggleAnalyticsEventsReport, toggleCrashErrorsReport } from './lib/methods/helpers/log';
-import { getTheme, initialTheme, newThemeState, subscribeTheme, unsubscribeTheme } from './lib/methods/helpers/theme';
+import {
+	getTheme,
+	initialTheme,
+	newThemeState,
+	setNativeTheme,
+	subscribeTheme,
+	unsubscribeTheme
+} from './lib/methods/helpers/theme';
 import ChangePasscodeView from './views/ChangePasscodeView';
 import ScreenLockedView from './views/ScreenLockedView';
 
@@ -98,6 +105,7 @@ export default class Root extends React.Component<{}, IState> {
 		if (isTablet) {
 			this.initTablet();
 		}
+		setNativeTheme(theme);
 	}
 
 	componentDidMount() {
@@ -206,38 +214,40 @@ export default class Root extends React.Component<{}, IState> {
 		return (
 			<SafeAreaProvider
 				initialMetrics={initialWindowMetrics}
-				style={{ backgroundColor: themes[this.state.theme].backgroundColor }}>
-				<AppearanceProvider>
-					<Provider store={store}>
-						<ThemeContext.Provider
+				style={{ backgroundColor: themes[this.state.theme].backgroundColor }}
+			>
+				<Provider store={store}>
+					<ThemeContext.Provider
+						value={{
+							theme,
+							themePreferences,
+							setTheme: this.setTheme,
+							colors: colors[theme]
+						}}
+					>
+						<DimensionsContext.Provider
 							value={{
-								theme,
-								themePreferences,
-								setTheme: this.setTheme,
-								colors: colors[theme]
-							}}>
-							<DimensionsContext.Provider
-								value={{
-									width,
-									height,
-									scale,
-									fontScale,
-									setDimensions: this.setDimensions
-								}}>
-								<GestureHandlerRootView style={{ flex: 1 }}>
-									<ActionSheetProvider>
-										<AppContainer />
-										<TwoFactor />
-										<ScreenLockedView />
-										<ChangePasscodeView />
-										<InAppNotification />
-										<Toast />
-									</ActionSheetProvider>
-								</GestureHandlerRootView>
-							</DimensionsContext.Provider>
-						</ThemeContext.Provider>
-					</Provider>
-				</AppearanceProvider>
+								width,
+								height,
+								scale,
+								fontScale,
+								setDimensions: this.setDimensions
+							}}
+						>
+							<GestureHandlerRootView style={{ flex: 1 }}>
+								<ActionSheetProvider>
+									<AppContainer />
+									<TwoFactor />
+									<ScreenLockedView />
+									<ChangePasscodeView />
+									<InAppNotification />
+									<Toast />
+									<Loading />
+								</ActionSheetProvider>
+							</GestureHandlerRootView>
+						</DimensionsContext.Provider>
+					</ThemeContext.Provider>
+				</Provider>
 			</SafeAreaProvider>
 		);
 	}

@@ -45,15 +45,14 @@ function connect({ server, logoutOnError = false }: { server: string; logoutOnEr
 		if (sdk.current?.client?.host === server) {
 			return resolve();
 		}
+
+		// Check for running requests and abort them before connecting to the server
+		abort();
+
 		disconnect();
 		database.setActiveDB(server);
 
 		store.dispatch(connectRequest());
-
-		// It's not called anywhere else
-		// if (this.connectTimeout) {
-		// 	clearTimeout(this.connectTimeout);
-		// }
 
 		if (connectingListener) {
 			connectingListener.then(stopListener);
@@ -265,7 +264,16 @@ function stopListener(listener: any): boolean {
 async function login(credentials: ICredentials, isFromWebView = false): Promise<ILoggedUser | undefined> {
 	// RC 0.64.0
 	await sdk.current.login(credentials);
+	const serverVersion = store.getState().server.version;
 	const result = sdk.current.currentLogin?.result;
+
+	let enableMessageParserEarlyAdoption = true;
+	let showMessageInMainThread = false;
+	if (compareServerVersion(serverVersion, 'lowerThan', '5.0.0')) {
+		enableMessageParserEarlyAdoption = result.me.settings?.preferences?.enableMessageParserEarlyAdoption ?? true;
+		showMessageInMainThread = result.me.settings?.preferences?.showMessageInMainThread ?? true;
+	}
+
 	if (result) {
 		const user: ILoggedUser = {
 			id: result.userId,
@@ -281,8 +289,9 @@ async function login(credentials: ICredentials, isFromWebView = false): Promise<
 			roles: result.me.roles,
 			avatarETag: result.me.avatarETag,
 			isFromWebView,
-			showMessageInMainThread: result.me.settings?.preferences?.showMessageInMainThread ?? true,
-			enableMessageParserEarlyAdoption: result.me.settings?.preferences?.enableMessageParserEarlyAdoption ?? true
+			showMessageInMainThread,
+			enableMessageParserEarlyAdoption,
+			alsoSendThreadToChannel: result.me.settings?.preferences?.alsoSendThreadToChannel
 		};
 		return user;
 	}
@@ -367,7 +376,6 @@ function abort() {
 	if (sdk.current) {
 		return sdk.current.abort();
 	}
-	return new AbortController();
 }
 
 function checkAndReopen() {

@@ -18,6 +18,7 @@ import { getDeviceToken } from '../notifications';
 import { RoomTypes, roomTypeToApiType, unsubscribeRooms } from '../methods';
 import sdk from './sdk';
 import { compareServerVersion, getBundleId, isIOS } from '../methods/helpers';
+import { ILivechatTag } from '../../definitions/ILivechatTag';
 
 export const createChannel = ({
 	name,
@@ -88,9 +89,16 @@ export const forgotPassword = (email: string) =>
 export const sendConfirmationEmail = (email: string): Promise<{ message: string; success: boolean }> =>
 	sdk.methodCallWrapper('sendConfirmationEmail', email);
 
-export const spotlight = (search: string, usernames: string[], type: { users: boolean; rooms: boolean }): Promise<ISpotlight> =>
+export const spotlight = (
+	search: string,
+	usernames: string[],
+	type: { users: boolean; rooms: boolean },
+	rid?: string
+): Promise<ISpotlight> =>
 	// RC 0.51.0
-	sdk.methodCallWrapper('spotlight', search, usernames, type);
+	rid
+		? sdk.methodCallWrapper('spotlight', search, usernames, type, rid)
+		: sdk.methodCallWrapper('spotlight', search, usernames, type);
 
 export const createDirectMessage = (username: string) =>
 	// RC 0.59.0
@@ -159,7 +167,7 @@ export const createTeam = ({
 }) => {
 	const params = {
 		name,
-		users,
+		members: users,
 		type: type ? TEAM_TYPE.PRIVATE : TEAM_TYPE.PUBLIC,
 		room: {
 			readOnly,
@@ -280,7 +288,7 @@ export const setUserPreferences = (userId: string, data: Partial<INotificationPr
 
 export const setUserStatus = (status: string, message: string) =>
 	// RC 1.2.0
-	sdk.post('users.setStatus', { status, message });
+	sdk.methodCall('setUserStatus', status, message);
 
 export const setReaction = (emoji: string, messageId: string) =>
 	// RC 0.62.2
@@ -347,9 +355,15 @@ export const getTeamListRoom = ({
 	return sdk.get('teams.listRooms', params);
 };
 
-export const closeLivechat = (rid: string, comment?: string) =>
+export const closeLivechat = (rid: string, comment?: string, tags?: string[]) => {
+	// RC 3.2.0
+	let params;
+	if (tags && tags?.length) {
+		params = { tags };
+	}
 	// RC 0.29.0
-	sdk.methodCallWrapper('livechat:closeRoom', rid, comment, { clientAction: true });
+	return sdk.methodCallWrapper('livechat:closeRoom', rid, comment, { clientAction: true, ...params });
+};
 
 export const editLivechat = (userData: TParams, roomData: TParams): Promise<{ error?: string }> =>
 	// RC 0.55.0
@@ -398,13 +412,7 @@ export const getRoutingConfig = (): Promise<{
 	// RC 2.0.0
 	sdk.methodCallWrapper('livechat:getRoutingConfig');
 
-export const getTagsList = (): Promise<
-	{
-		_id: string;
-		name: string;
-		departments: string[];
-	}[]
-> =>
+export const getTagsList = (): Promise<ILivechatTag[]> =>
 	// RC 2.0.0
 	sdk.methodCallWrapper('livechat:getTagsList');
 
@@ -687,7 +695,7 @@ export const runSlashCommand = (command: string, roomId: string, params: string,
 		roomId,
 		params,
 		triggerId,
-		tmid
+		...(tmid && { tmid })
 	});
 
 export const getCommandPreview = (command: string, roomId: string, params: string) =>
@@ -865,7 +873,7 @@ export const getRoomMembers = async ({
 	allUsers: boolean;
 	type: 'all' | 'online';
 	roomType: SubscriptionType;
-	filter: boolean;
+	filter: string;
 	skip: number;
 	limit: number;
 }) => {
@@ -887,9 +895,7 @@ export const getRoomMembers = async ({
 	}
 	// RC 0.42.0
 	const result = await sdk.methodCallWrapper('getUsersOfRoom', rid, allUsers, { skip, limit });
-	if (result.success) {
-		return result?.records;
-	}
+	return result?.records;
 };
 
 export const e2eFetchMyKeys = async () => {

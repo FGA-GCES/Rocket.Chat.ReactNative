@@ -1,6 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FlatList } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RouteProp } from '@react-navigation/native';
 import { StackNavigationOptions, StackNavigationProp } from '@react-navigation/stack';
 import { HeaderBackButton } from '@react-navigation/elements';
@@ -12,7 +11,6 @@ import StatusBar from '../../containers/StatusBar';
 import ActivityIndicator from '../../containers/ActivityIndicator';
 import SearchHeader from '../../containers/SearchHeader';
 import BackgroundContainer from '../../containers/BackgroundContainer';
-import { getHeaderTitlePosition } from '../../containers/Header';
 import { useTheme } from '../../theme';
 import Navigation from '../../lib/navigation/appNavigation';
 import { goRoom } from '../../lib/methods/helpers/goRoom';
@@ -26,7 +24,7 @@ import DropdownItemHeader from './Dropdown/DropdownItemHeader';
 import styles from './styles';
 import { ICannedResponse } from '../../definitions/ICannedResponse';
 import { ChatsStackParamList } from '../../stacks/types';
-import { getRoomTitle, getUidDirectMessage, debounce } from '../../lib/methods/helpers';
+import { getRoomTitle, getUidDirectMessage, useDebounce } from '../../lib/methods/helpers';
 import { Services } from '../../lib/services';
 import { ILivechatDepartment } from '../../definitions/ILivechatDepartment';
 import { useAppSelector } from '../../lib/hooks';
@@ -73,7 +71,6 @@ const CannedResponsesListView = ({ navigation, route }: ICannedResponsesListView
 	const [loading, setLoading] = useState(true);
 	const [offset, setOffset] = useState(0);
 
-	const insets = useSafeAreaInsets();
 	const { theme } = useTheme();
 	const isMasterDetail = useAppSelector(state => state.app.isMasterDetail);
 	const rooms = useAppSelector(state => state.room.rooms);
@@ -91,7 +88,7 @@ const CannedResponsesListView = ({ navigation, route }: ICannedResponsesListView
 		}
 	};
 
-	const getDepartments = debounce(async () => {
+	const getDepartments = useDebounce(async () => {
 		try {
 			const res = await Services.getDepartments();
 			if (res.success) {
@@ -190,12 +187,9 @@ const CannedResponsesListView = ({ navigation, route }: ICannedResponsesListView
 		}
 	}, [departments, cannedResponses]);
 
-	const searchCallback = useCallback(
-		debounce(async (text = '', department = '', depId = '') => {
-			await getListCannedResponse({ text, department, depId, debounced: true });
-		}, 1000),
-		[]
-	); // use debounce with useCallback https://stackoverflow.com/a/58594890
+	const searchCallback = useDebounce(async (text = '', department = '', depId = '') => {
+		await getListCannedResponse({ text, department, depId, debounced: true });
+	}, 1000);
 
 	useEffect(() => {
 		getRoomFromDb();
@@ -248,9 +242,10 @@ const CannedResponsesListView = ({ navigation, route }: ICannedResponsesListView
 
 	const getHeader = (): StackNavigationOptions => {
 		if (isSearching) {
-			const headerTitlePosition = getHeaderTitlePosition({ insets, numIconsRight: 1 });
 			return {
 				headerTitleAlign: 'left',
+				headerTitleContainerStyle: { flex: 1, marginHorizontal: 0, marginRight: 15, maxWidth: undefined },
+				headerRightContainerStyle: { flexGrow: 0 },
 				headerLeft: () => (
 					<HeaderButton.Container left>
 						<HeaderButton.Item
@@ -263,35 +258,34 @@ const CannedResponsesListView = ({ navigation, route }: ICannedResponsesListView
 					</HeaderButton.Container>
 				),
 				headerTitle: () => <SearchHeader onSearchChangeText={onChangeText} testID='team-channels-view-search-header' />,
-				headerTitleContainerStyle: {
-					left: headerTitlePosition.left,
-					right: headerTitlePosition.right
-				},
 				headerRight: () => null
 			};
 		}
 
 		const options: StackNavigationOptions = {
-			headerLeft: () => (
-				<HeaderBackButton labelVisible={false} onPress={() => navigation.pop()} tintColor={themes[theme].headerTintColor} />
-			),
-			headerTitleAlign: 'center',
+			headerTitleAlign: undefined,
 			headerTitle: I18n.t('Canned_Responses'),
-			headerTitleContainerStyle: {
-				left: 0,
-				right: 0
-			}
+			headerTitleContainerStyle: { maxWidth: undefined },
+			headerRightContainerStyle: { flexGrow: 1 },
+			headerLeft: () => (
+				<HeaderBackButton
+					labelVisible={false}
+					onPress={() => navigation.pop()}
+					tintColor={themes[theme].headerTintColor}
+					testID='header-back'
+				/>
+			),
+			headerRight: () => (
+				<HeaderButton.Container>
+					<HeaderButton.Item iconName='search' onPress={() => setIsSearching(true)} />
+				</HeaderButton.Container>
+			)
 		};
 
 		if (isMasterDetail) {
 			options.headerLeft = () => <HeaderButton.CloseModal navigation={navigation} />;
 		}
 
-		options.headerRight = () => (
-			<HeaderButton.Container>
-				<HeaderButton.Item iconName='search' onPress={() => setIsSearching(true)} />
-			</HeaderButton.Container>
-		);
 		return options;
 	};
 

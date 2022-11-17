@@ -31,6 +31,7 @@ import { moderateScale, verticalScale } from './scaling';
 import SSLPinning from '../../lib/methods/helpers/sslPinning';
 import sharedStyles from '../Styles';
 import ServerInput from './ServerInput';
+import { serializeAsciiUrl } from '../../lib/methods';
 
 const styles = StyleSheet.create({
 	onboardingImage: {
@@ -115,12 +116,21 @@ class NewServerView extends React.Component<INewServerViewProps, INewServerViewS
 		}
 	}
 
+	componentDidUpdate(prevProps: Readonly<INewServerViewProps>) {
+		if (prevProps.connecting !== this.props.connecting) {
+			this.setHeader();
+		}
+	}
+
 	setHeader = () => {
-		const { previousServer, navigation } = this.props;
+		const { previousServer, navigation, connecting } = this.props;
 		if (previousServer) {
 			return navigation.setOptions({
 				headerTitle: I18n.t('Workspaces'),
-				headerLeft: () => <HeaderButton.CloseModal navigation={navigation} onPress={this.close} testID='new-server-view-close' />
+				headerLeft: () =>
+					!connecting ? (
+						<HeaderButton.CloseModal navigation={navigation} onPress={this.close} testID='new-server-view-close' />
+					) : null
 			});
 		}
 
@@ -161,6 +171,7 @@ class NewServerView extends React.Component<INewServerViewProps, INewServerViewS
 
 	close = () => {
 		const { dispatch, previousServer } = this.props;
+
 		dispatch(inviteLinksClear());
 		if (previousServer) {
 			dispatch(selectServerRequest(previousServer));
@@ -257,8 +268,7 @@ class NewServerView extends React.Component<INewServerViewProps, INewServerViewS
 				url = `https://${url}`;
 			}
 		}
-
-		return url.replace(/\/+$/, '').replace(/\\/g, '/');
+		return serializeAsciiUrl(url.replace(/\/+$/, '').replace(/\\/g, '/'));
 	};
 
 	uriToPath = (uri: string) => uri.replace('file://', '');
@@ -295,19 +305,23 @@ class NewServerView extends React.Component<INewServerViewProps, INewServerViewS
 					{
 						marginBottom: verticalScale({ size: previousServer && !isTablet ? 10 : 30, height })
 					}
-				]}>
+				]}
+			>
 				<Text
 					style={[
 						styles.chooseCertificateTitle,
 						{ color: themes[theme].auxiliaryText, fontSize: moderateScale({ size: 13, width }) }
-					]}>
+					]}
+				>
 					{certificate ? I18n.t('Your_certificate') : I18n.t('Do_you_have_a_certificate')}
 				</Text>
 				<TouchableOpacity
 					onPress={certificate ? this.handleRemove : this.chooseCertificate}
-					testID='new-server-choose-certificate'>
+					testID='new-server-choose-certificate'
+				>
 					<Text
-						style={[styles.chooseCertificate, { color: themes[theme].tintColor, fontSize: moderateScale({ size: 13, width }) }]}>
+						style={[styles.chooseCertificate, { color: themes[theme].tintColor, fontSize: moderateScale({ size: 13, width }) }]}
+					>
 						{certificate ?? I18n.t('Apply_Your_Certificate')}
 					</Text>
 				</TouchableOpacity>
@@ -344,7 +358,8 @@ class NewServerView extends React.Component<INewServerViewProps, INewServerViewS
 								fontSize: moderateScale({ size: 22, width }),
 								marginBottom: verticalScale({ size: 8, height })
 							}
-						]}>
+						]}
+					>
 						Rocket.Chat
 					</Text>
 					<Text
@@ -355,7 +370,8 @@ class NewServerView extends React.Component<INewServerViewProps, INewServerViewS
 								fontSize: moderateScale({ size: 16, width }),
 								marginBottom: verticalScale({ size: 30, height })
 							}
-						]}>
+						]}
+					>
 						{I18n.t('Onboarding_subtitle')}
 					</Text>
 					<ServerInput
@@ -385,7 +401,8 @@ class NewServerView extends React.Component<INewServerViewProps, INewServerViewS
 								fontSize: moderateScale({ size: 14, width }),
 								marginBottom: verticalScale({ size: 16, height })
 							}
-						]}>
+						]}
+					>
 						{I18n.t('Onboarding_join_open_description')}
 					</Text>
 					<Button

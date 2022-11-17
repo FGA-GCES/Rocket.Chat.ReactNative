@@ -18,10 +18,10 @@ const HANDLE_HEIGHT = isIOS ? 40 : 56;
 const MIN_SNAP_HEIGHT = 16;
 const CANCEL_HEIGHT = 64;
 
-const ANIMATION_DURATION = 250;
+export const ACTION_SHEET_ANIMATION_DURATION = 250;
 
 const ANIMATION_CONFIG = {
-	duration: ANIMATION_DURATION,
+	duration: ACTION_SHEET_ANIMATION_DURATION,
 	// https://easings.net/#easeInOutCubic
 	easing: Easing.bezier(0.645, 0.045, 0.355, 1.0)
 };
@@ -101,6 +101,11 @@ const ActionSheet = React.memo(
 			</>
 		);
 
+		const onClose = () => {
+			toggleVisible();
+			data?.onClose && data?.onClose();
+		};
+
 		const renderBackdrop = useCallback(
 			props => (
 				<BottomSheetBackdrop
@@ -134,8 +139,11 @@ const ActionSheet = React.memo(
 						enablePanDownToClose
 						style={{ ...styles.container, ...bottomSheet }}
 						backgroundStyle={{ backgroundColor: colors.focusedBackground }}
-						onChange={index => index === -1 && toggleVisible()}
-						{...androidTablet}>
+						onChange={index => index === -1 && onClose()}
+						// We need this to allow horizontal swipe gesture inside the bottom sheet like in reaction picker
+						enableContentPanningGesture={data?.enableContentPanningGesture ?? true}
+						{...androidTablet}
+					>
 						<BottomSheetContent options={data?.options} hide={hide} children={data?.children} hasCancel={data?.hasCancel} />
 					</BottomSheet>
 				)}

@@ -20,7 +20,7 @@ import { isTablet } from '../../lib/methods/helpers';
 import { localAuthenticate } from '../../lib/methods/helpers/localAuthentication';
 import { showConfirmationAlert } from '../../lib/methods/helpers/info';
 import log, { events, logEvent } from '../../lib/methods/helpers/log';
-import { headerHeight } from '../../containers/Header';
+import { headerHeight } from '../../lib/methods/helpers/navigation';
 import { goRoom } from '../../lib/methods/helpers/goRoom';
 import UserPreferences from '../../lib/methods/userPreferences';
 import { IApplicationState, IBaseScreen, RootEnum, TServerModel } from '../../definitions';
@@ -230,7 +230,8 @@ class ServerDropdown extends Component<IServerDropdownProps, IServerDropdownStat
 							borderColor: themes[theme].separatorColor
 						}
 					]}
-					testID='rooms-list-header-server-dropdown'>
+					testID='rooms-list-header-server-dropdown'
+				>
 					<View style={[styles.dropdownContainerHeader, styles.serverHeader, { borderColor: themes[theme].separatorColor }]}>
 						<Text style={[styles.serverHeaderText, { color: themes[theme].auxiliaryText }]}>{I18n.t('Server')}</Text>
 						<TouchableOpacity onPress={this.addServer} testID='rooms-list-header-server-add'>

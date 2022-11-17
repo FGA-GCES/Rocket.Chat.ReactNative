@@ -8,7 +8,7 @@ import { dequal } from 'dequal';
 import omit from 'lodash/omit';
 import { StackNavigationOptions } from '@react-navigation/stack';
 
-import Touch from '../../lib/methods/helpers/touch';
+import Touch from '../../containers/Touch';
 import KeyboardView from '../../containers/KeyboardView';
 import sharedStyles from '../Styles';
 import scrollPersistTaps from '../../lib/methods/helpers/scrollPersistTaps';
@@ -226,7 +226,7 @@ class ProfileView extends React.Component<IProfileViewProps, IProfileViewState> 
 
 		// Name
 		if (user.name !== name) {
-			params.name = name;
+			params.realname = name;
 		}
 
 		// Username
@@ -295,6 +295,8 @@ class ProfileView extends React.Component<IProfileViewProps, IProfileViewState> 
 
 			if (result) {
 				logEvent(events.PROFILE_SAVE_CHANGES);
+				params.name = params.realname;
+				delete params.realname;
 				if (customFields) {
 					dispatch(setUser({ customFields, ...params }));
 				} else {
@@ -376,7 +378,7 @@ class ProfileView extends React.Component<IProfileViewProps, IProfileViewState> 
 				onPress={onPress}
 				style={[styles.avatarButton, { opacity: disabled ? 0.5 : 1 }, { backgroundColor: themes[theme].borderColor }]}
 				enabled={!disabled}
-				theme={theme}>
+			>
 				{child}
 			</Touch>
 		);
@@ -446,7 +448,8 @@ class ProfileView extends React.Component<IProfileViewProps, IProfileViewState> 
 								newValue[key] = value;
 								this.setState({ customFields: { ...customFields, ...newValue } });
 							}}
-							value={customFields[key]}>
+							value={customFields[key]}
+						>
 							<FormTextInput
 								inputRef={e => {
 									// @ts-ignore
@@ -534,7 +537,8 @@ class ProfileView extends React.Component<IProfileViewProps, IProfileViewState> 
 			<KeyboardView
 				style={{ backgroundColor: themes[theme].auxiliaryBackground }}
 				contentContainerStyle={sharedStyles.container}
-				keyboardVerticalOffset={128}>
+				keyboardVerticalOffset={128}
+			>
 				<StatusBar />
 				<SafeAreaView testID='profile-view'>
 					<ScrollView contentContainerStyle={sharedStyles.containerScrollView} testID='profile-view-list' {...scrollPersistTaps}>
